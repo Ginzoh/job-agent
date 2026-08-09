@@ -1,0 +1,28 @@
+{
+  "name": "job-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Autonomous job/freelance opportunity scout for fullstack & frontend developers",
+  "packageManager": "yarn@1.22.22",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "_scripts_note": "`run` and `list` are shadowed by Yarn's own built-in commands, so `start` and `jobs` are the names to use. The originals still work via an explicit `yarn run run` / `yarn run list`.",
+  "scripts": {
+    "start": "node --no-warnings src/cli.js run",
+    "run": "node --no-warnings src/cli.js run",
+    "jobs": "node --no-warnings src/cli.js list",
+    "list": "node --no-warnings src/cli.js list",
+    "fetch": "node --no-warnings src/cli.js fetch",
+    "score": "node --no-warnings src/cli.js score",
+    "rescore": "node --no-warnings src/cli.js score --rescore",
+    "refilter": "node --no-warnings src/cli.js refilter",
+    "digest": "node --no-warnings src/cli.js digest",
+    "web": "node --no-warnings src/cli.js web",
+    "watch": "node --no-warnings src/cli.js watch",
+    "doctor": "node --no-warnings src/cli.js doctor",
+    "stats": "node --no-warnings src/cli.js stats"
+  },
+  "dependencies": {}
+}

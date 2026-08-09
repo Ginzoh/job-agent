@@ -1,0 +1,97 @@
+{
+  "_comment": "TEMPLATE. Copy this to profile.json and make it describe you. profile.json is gitignored because it holds your salary expectations and dealbreakers — things you do not want searchable. This file is sent to the LLM so it can judge fit and write applications, so the more honest and specific it is, the better the results. Nothing here is used for mechanical filtering (that's filters.json).",
+
+  "name": "Your first name",
+  "headline": "Fullstack / Frontend Developer — React & Node.js",
+
+  "summary": "Two to four sentences in your own words. What you actually build, what you are strongest at, and one concrete thing you shipped. Specific beats impressive: 'built a full-stack RFID badging app where the API had to stay reliable whether or not the hardware behaved' tells a reader more than 'passionate problem solver'.",
+
+  "years_experience": 3,
+  "experience_note": "Break down where the years come from — apprenticeship, employment, freelance. If a role ended for a reason worth explaining (company closed, contract ended), say so here.",
+  "experience_stance": "How you want stretch roles handled. For example: 'Happy to apply to roles asking for 3-5 years. Do not screen out a good stack and location match over the year count alone — flag the gap as something to be ready to address, not a reason to reject.'",
+
+  "education": "Your degree, institution, years",
+  "availability": "Immediately available / from a date / 2 months' notice",
+
+  "freelance_status": {
+    "_comment": "Delete this block if you are not set up for freelance work. It matters in France: many missions require an existing statut indépendant, and having one turns a hard requirement into a match.",
+    "registered_company": "Your company name, or null",
+    "has_siret": false,
+    "can_invoice_directly": false,
+    "note": ""
+  },
+
+  "skills": {
+    "_comment": "Tiers should reflect real, evidenced use. The generator is instructed never to claim anything outside this list, so anything missing here will never appear in a generated CV or cover letter.",
+    "expert": ["React", "TypeScript", "JavaScript", "HTML5", "CSS3"],
+    "strong": ["Node.js", "Express.js", "REST APIs", "PostgreSQL", "Docker", "Git", "CI/CD"],
+    "familiar": ["GraphQL", "MongoDB", "AWS", "Jest", "Linux", "Agile (Scrum, Kanban)"],
+    "learning": ["Go", "Rust"]
+  },
+
+  "side_projects": [
+    {
+      "name": "Name of a project you actually built",
+      "note": "What it is, what stack, and what it demonstrates. Projects outside your professional stack are especially useful — they are evidence you pick up unfamiliar ecosystems without being walked through them."
+    }
+  ],
+
+  "seeking": {
+    "contract_types": ["freelance", "permanent", "contract"],
+    "note_on_contract_types": "freelance = mission/prestation/TJM. permanent = CDI. contract = CDD/fixed-term. Remove any you don't want.",
+    "roles": [
+      "Frontend Developer",
+      "Fullstack Developer",
+      "React Developer",
+      "Développeur Frontend",
+      "Développeur Fullstack"
+    ],
+    "seniority": ["junior", "mid-level", "confirmé", "medior"],
+    "avoid_seniority": ["intern", "stage", "alternance", "apprenticeship", "head of", "VP", "director", "staff", "principal"]
+  },
+
+  "location": {
+    "base": "France",
+    "timezone": "Europe/Paris",
+    "willing_to_work_onsite": true,
+    "willing_to_relocate": false,
+    "home_city": "Your city",
+    "max_commute_note": "Where you will actually go in person, and under what conditions.",
+    "preferred_cities": ["Paris", "Lyon", "Bordeaux", "Nantes", "Lille", "Toulouse"]
+  },
+
+  "compensation": {
+    "_comment": "Used only as context for the LLM — it is never sent anywhere. Be realistic for your market and seniority: setting these too high makes the scorer mark perfectly good roles as below target.",
+    "freelance_tjm_eur_min": 350,
+    "freelance_tjm_eur_target": 450,
+    "salary_eur_min": 38000,
+    "salary_eur_target": 48000
+  },
+
+  "languages": [
+    { "lang": "French", "level": "native" },
+    { "lang": "English", "level": "fluent — comfortable in an English-speaking technical environment" }
+  ],
+
+  "dealbreakers": [
+    "Unpaid work or 'equity only' compensation",
+    "Pure QA, pure support, or non-engineering roles",
+    "Positions requiring an active security clearance",
+    "Roles requiring relocation outside your accepted area",
+    "Recruiter spam with no named company and no described mission"
+  ],
+
+  "bonus_signals": [
+    "Modern TypeScript codebase",
+    "Product company rather than pure body-shop ESN",
+    "Small team where a fullstack dev owns real scope",
+    "Explicit remote-friendly policy",
+    "Salary or TJM stated openly in the posting"
+  ],
+
+  "links": {
+    "portfolio": "",
+    "github": "",
+    "linkedin": ""
+  }
+}

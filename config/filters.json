@@ -1,0 +1,84 @@
+{
+  "_comment": "MECHANICAL filters. These run before the LLM and are cheap. Their job is to throw out obvious junk so you don't burn tokens on it. Be generous here — let the LLM do the fine judgement.",
+
+  "stack": {
+    "_comment": "A job must mention at least `min_required_hits` terms from `required_any` to survive. Terms are matched case-insensitively on word boundaries.",
+    "min_required_hits": 1,
+    "required_any": [
+      "react", "react.js", "reactjs",
+      "node", "node.js", "nodejs",
+      "typescript", "javascript",
+      "next.js", "nextjs",
+      "frontend", "front-end", "front end",
+      "fullstack", "full-stack", "full stack",
+      "développeur front", "developpeur front",
+      "développeur fullstack", "developpeur fullstack"
+    ],
+    "nice_to_have": [
+      "tailwind", "vite", "graphql", "postgres", "postgresql", "prisma",
+      "express", "nestjs", "nest.js", "redux", "zustand", "vue", "svelte",
+      "remix", "astro", "docker", "aws", "storybook", "playwright", "jest",
+      "design system", "monorepo", "turborepo"
+    ],
+    "excluded": [
+      "_comment: a job mentioning these AND none of required_any is dropped",
+      "salesforce", "sharepoint", "cobol", "abap", "sap", "mainframe",
+      "wordpress theme", "drupal", "magento", "sitecore", "adobe experience manager"
+    ]
+  },
+
+  "location": {
+    "_comment": "A job survives if its location matches ANY entry in `accept`, OR it is flagged remote and `accept_remote` is true. Matching is on whole words, case- and accent-insensitive.",
+    "accept_remote": true,
+    "remote_scope": ["worldwide", "europe", "emea", "france", "anywhere", "global"],
+    "accept": [
+      "france", "french", "paris", "lyon", "bordeaux", "nantes", "lille",
+      "toulouse", "marseille", "rennes", "montpellier", "nice",
+      "grenoble", "ile-de-france", "île-de-france", "idf",
+
+      "_comment: home region — Strasbourg and the rest of Grand Est / Alsace",
+      "strasbourg", "mulhouse", "colmar", "metz", "nancy", "reims",
+      "grand est", "grand-est", "alsace", "bas-rhin", "haut-rhin", "moselle",
+
+      "_comment: cross-border, all within commuting or relocation range of Strasbourg",
+      "luxembourg", "belgium", "belgique", "brussels", "bruxelles", "liege", "liège",
+      "switzerland", "suisse", "geneva", "geneve", "genève", "lausanne", "basel", "bale", "bâle", "zurich",
+      "germany", "allemagne", "deutschland", "karlsruhe", "freiburg", "fribourg", "stuttgart", "offenburg", "kehl",
+
+      "remote", "teletravail", "télétravail", "distanciel", "hybrid", "hybride",
+      "europe", "emea"
+    ],
+    "reject": [
+      "united states only", "us only", "usa only", "must be based in the us",
+      "us citizens only", "requires us work authorization", "green card",
+      "canada only", "india only", "uk only", "australia only",
+      "security clearance"
+    ]
+  },
+
+  "title": {
+    "_comment": "Titles matching `reject` are dropped outright, regardless of anything else.",
+    "reject": [
+      "stage", "stagiaire", "internship", "intern ", "alternance", "alternant",
+      "apprenti", "apprenticeship", "graduate scheme",
+      "head of", "vp of", "vice president", "director of", "cto", "chief",
+      "recruiter", "recruteur", "talent acquisition", "sales", "commercial",
+      "designer", "ux/ui designer", "product manager", "scrum master",
+      "data scientist", "data engineer", "devops engineer", "sre ",
+      "android developer", "ios developer", "unity", "unreal",
+      "java developer", "c# developer", ".net developer", "php developer",
+      "python developer", "golang developer", "ruby on rails"
+    ]
+  },
+
+  "freshness": {
+    "_comment": "Ignore postings older than this. Old listings are usually filled.",
+    "max_age_days": 45
+  },
+
+  "scoring": {
+    "_comment": "Thresholds applied to the LLM's 0-100 score.",
+    "shortlist_at": 70,
+    "reject_below": 40
+  }
+}

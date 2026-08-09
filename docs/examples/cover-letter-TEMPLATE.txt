@@ -1,0 +1,79 @@
+How to write your cover-letter file
+===================================
+
+Copy this into `cover_letter_example/` as a .txt or .md file and rewrite it in your own voice.
+
+This file is NOT used as a form to fill in. It is read as a sample of how you write, so the
+generator can produce letters that sound like you rather than like a template. That means the
+most useful thing you can put here is one real letter you were happy with — your actual
+sentences, your actual rhythm, your actual level of formality.
+
+What makes the difference:
+
+  - Write it the way you would actually write to a person. If your instinct is to open with a
+    concrete observation rather than "I am writing to apply for", keep that; it will be
+    reproduced.
+  - Include at least one specific story with real detail. Specificity is the thing the
+    generator learns most from, and generic source material produces generic output.
+  - Leave your placeholders in square brackets — [Company], [Role title], [Date]. They are
+    recognised as slots to fill rather than text to copy.
+  - Length matters less than voice. A letter you would genuinely send beats a polished one you
+    would not.
+
+Below is a neutral skeleton to replace. Do not send this as-is; it exists to show the shape.
+
+---
+
+
+[Your Name]
+[Your title] — [Your company, if you have one]
+[City, Country]
+[email] · [phone] · [LinkedIn] · [GitHub / Portfolio]
+
+
+[Date]
+
+
+To: [Hiring Manager / Recruiter name]
+[Company name]
+
+
+Subject: Application — [Role title]
+
+
+Dear [Name],
+
+
+Open with something concrete and true — an observation about the problem the role exists to
+solve, or the moment in your own work that made you care about this kind of engineering. Not
+"I am writing to apply for the position of X, which I saw advertised on Y."
+
+
+Second paragraph: your stack, and why it is your stack. What you can follow from end to end.
+Anchor it in something you actually shipped rather than listing technologies.
+
+
+Third paragraph: one role or project in real detail. What you owned, what constraint made it
+hard, and what you learned that you would bring here. This is where specificity earns you the
+interview.
+
+
+Fourth paragraph: the thing a CV compresses badly. A side project, a technology you picked up
+unprompted, a way of working you care about. Ideally something that shows you learn without
+being told to.
+
+
+If there is an obvious objection — fewer years than they asked for, a gap, a stack they use
+that you do not — address it briefly and without apology. A screener who spots it themselves
+weighs it more heavily than one you have already answered.
+
+
+Close with what you are looking for, what you offer, and your availability. Keep it short.
+
+
+Kind regards,
+
+
+[Your Name]
+[Company / SIRET if freelance]
+[email] · [phone]

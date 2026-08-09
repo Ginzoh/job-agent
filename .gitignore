@@ -1,0 +1,34 @@
+node_modules/
+data/
+out/
+.env
+*.log
+
+# ---------------------------------------------------------------------------
+# Personal data — deliberately never committed.
+#
+# Git history is permanent: anything committed once stays recoverable even
+# after deletion, and survives flipping this repo public. Keeping these out
+# from the very first commit is what makes that safe.
+#
+# profile.json holds your salary floor, TJM range and dealbreakers. The CV and
+# cover letter hold your phone number and address. None of it belongs in a
+# repository. Templates for all three are committed instead:
+#   config/profile.example.json
+#   docs/examples/
+# ---------------------------------------------------------------------------
+config/profile.json
+CV_example/*
+cover_letter_example/*
+!CV_example/.gitkeep
+!cover_letter_example/.gitkeep
+
+# Yarn — the lockfile itself IS committed, everything else is local state.
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+yarn-error.log
