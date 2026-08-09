@@ -22,7 +22,20 @@ loadEnv();
 
 function readJson(name) {
   const path = join(ROOT, 'config', name);
-  if (!existsSync(path)) throw new Error(`Missing config file: config/${name}`);
+
+  if (!existsSync(path)) {
+    // profile.json is gitignored, so this is the first thing a fresh clone
+    // hits. Say exactly how to fix it rather than just naming the missing file.
+    const example = name.replace(/\.json$/, '.example.json');
+    const hasExample = existsSync(join(ROOT, 'config', example));
+    throw new Error(
+      `Missing config/${name}.` +
+      (hasExample
+        ? `\n\n  This file holds personal details and is deliberately not in the repository.\n  Create it from the template:\n\n    copy config\\${example} config\\${name}\n\n  Then edit it so it describes you — scoring quality depends on it.`
+        : '')
+    );
+  }
+
   try {
     return JSON.parse(readFileSync(path, 'utf8'));
   } catch (err) {
