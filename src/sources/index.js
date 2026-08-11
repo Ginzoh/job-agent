@@ -3,6 +3,8 @@ import * as remoteok from './remoteok.js';
 import * as arbeitnow from './arbeitnow.js';
 import * as weworkremotely from './weworkremotely.js';
 import * as hackernews from './hackernews.js';
+import * as jobindex from './jobindex.js';
+import * as jobtech from './jobtech.js';
 import * as companyboards from './companyboards.js';
 import * as adzuna from './adzuna.js';
 import * as francetravail from './francetravail.js';
@@ -18,4 +20,6 @@ export const ALL_SOURCES = [
   weworkremotely,
   arbeitnow,
   hackernews,
+  jobtech,        // Sweden — national job bank, open data, no key
+  jobindex,       // Denmark — RSS, no pagination allowed
 ];

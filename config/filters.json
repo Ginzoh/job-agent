@@ -41,9 +41,19 @@
       "grand est", "grand-est", "alsace", "bas-rhin", "haut-rhin", "moselle",
 
       "_comment: cross-border, all within commuting or relocation range of Strasbourg",
-      "luxembourg", "belgium", "belgique", "brussels", "bruxelles", "liege", "liège",
+      "luxembourg", "luxemburg", "belgium", "belgique", "brussels", "bruxelles", "liege", "liège",
       "switzerland", "suisse", "geneva", "geneve", "genève", "lausanne", "basel", "bale", "bâle", "zurich",
       "germany", "allemagne", "deutschland", "karlsruhe", "freiburg", "fribourg", "stuttgart", "offenburg", "kehl",
+
+      "_comment: Denmark — relocation only, no commuting from Strasbourg",
+      "denmark", "danmark", "copenhagen", "københavn", "kobenhavn", "aarhus", "århus", "arhus",
+      "odense", "aalborg", "esbjerg", "frederiksberg", "lyngby", "roskilde", "kolding", "vejle", "horsens",
+
+      "_comment: Sweden — relocation only",
+      "sweden", "sverige", "stockholm", "göteborg", "goteborg", "gothenburg", "malmö", "malmo",
+      "uppsala", "linköping", "linkoping", "västerås", "vasteras", "örebro", "orebro",
+      "helsingborg", "norrköping", "norrkoping", "jönköping", "jonkoping", "lund", "umeå", "umea",
+      "solna", "sundbyberg", "kista", "gävle", "gavle", "borås", "boras",
 
       "remote", "teletravail", "télétravail", "distanciel", "hybrid", "hybride",
       "europe", "emea"

@@ -12,6 +12,18 @@
                          "https://weworkremotely.com/categories/remote-back-end-programming-jobs.rss",
                          "https://weworkremotely.com/categories/remote-programming-jobs.rss"
                        ] },
+    "jobtech":       { "enabled": true,  "needs_key": false,
+                       "_comment": "Sweden's national job bank (Platsbanken), published as open data by Arbetsförmedlingen at jobtechdev.se. No key, no registration, properly structured records. Query in Swedish where possible — 'fullstack utvecklare' returns 119 matches against 6 for 'frontend developer', because the adverts are written in Swedish. Max 100 results per page.",
+                       "items_per_page": 100,
+                       "max_pages": 2,
+                       "queries": [
+                         "react", "node.js", "typescript", "javascript",
+                         "fullstack utvecklare", "frontend utvecklare",
+                         "webbutvecklare", "systemutvecklare javascript"
+                       ] },
+    "jobindex":      { "enabled": true,  "needs_key": false,
+                       "_comment": "Jobindex.dk — the main Danish job board. No public API (robots.txt disallows /api/), but its RSS feed is open and honours search terms. Capped at ~20 results per query because robots.txt disallows pagination — add more queries rather than expecting depth. Requires Denmark in filters.json location.accept, which is set.",
+                       "queries": ["react", "node.js", "typescript", "frontend udvikler", "fullstack udvikler", "javascript"] },
     "hackernews":    { "enabled": true,  "needs_key": false,
                        "_comment": "Parses the monthly 'Ask HN: Who is hiring?' + 'Freelancer? Seeking freelancer?' threads. Excellent for remote & freelance leads.",
                        "months_back": 3 },
@@ -20,9 +32,11 @@
                        "contracts": ["contractor", "permanent"],
                        "items_per_page": 100,
                        "max_pages": 3,
+                       "_queries_comment": "The `luxembourg` query is how Luxembourg coverage happens: Free-Work carries ~55 Luxembourg postings and about 90% of them are genuinely located there. Cheaper and more reliable than scraping a Luxembourg board — Moovijob and jobs.lu are JS apps with no feed and no structured data.",
                        "queries": [
                          "react", "node.js", "typescript", "javascript",
-                         "développeur fullstack", "développeur front-end", "next.js"
+                         "développeur fullstack", "développeur front-end", "next.js",
+                         "luxembourg", "développeur luxembourg"
                        ] },
     "adzuna":        { "enabled": true,  "needs_key": true,
                        "_comment": "Best France coverage. Free key at https://developer.adzuna.com/signup",
