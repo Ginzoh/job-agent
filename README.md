@@ -138,12 +138,34 @@ Expand any job in the dashboard and there are three buttons:
 | Button | What it does |
 |---|---|
 | **📝 CV advice** | A blunt screener's read of your CV against *this* posting: what to lead with, exact line-by-line rewrites, missing keywords you genuinely have, and the gaps you can't paper over. |
-| **📄 Tailor my CV** | A rewritten CV targeting the posting — bullets reordered, summary rewritten, skills reselected — plus a "what I changed and why" note to delete before sending. |
+| **📄 Tailor my CV** | A rewritten CV targeting the posting, laid out like your real one and **downloadable as a PDF** — plus a table of exactly what changed. |
 | **✉️ Cover letter** | A letter in *your* voice, learned from `cover_letter_example/`. |
 
 **⚙︎ Options** sets language (auto / French / English), a character limit, tone, and free-text instructions like *"lead with React Native"* or *"mention I can start immediately"*.
 
 Results open in a panel with **Copy** and **Download .md**, and every generated document is saved — reopen it from the `saved:` links on the job rather than paying to regenerate.
+
+#### The tailored CV is a real document
+
+The CV isn't returned as Markdown — reading a wall of text to work out what moved is useless. Instead the model returns structured data, which gets laid out as an A4 page matching your own CV's design (dark header band, two columns, teal section headings) and rendered to PDF.
+
+The panel opens on **What changed**: a table of section / before → after / why, so you review nine edits in ten seconds instead of re-reading the whole CV. Anything the posting wanted that you don't have is listed separately underneath, never quietly added.
+
+| Button | |
+|---|---|
+| **⬇ Download PDF** | The finished CV, ready to attach |
+| **Open printable ↗** | The A4 page in a tab — `Ctrl+P` if you want the browser's own PDF settings |
+| **Plain text** | For pasting into an application form |
+
+PDF rendering uses the Chrome or Edge already on your machine via `--print-to-pdf`, so there's still nothing to install (Edge ships with Windows). If no browser is found, the printable page still works and the download button explains why. Section labels follow the CV's language — a French posting produces *Expérience*, *Compétences techniques*, *Contexte*, not English headings on French text.
+
+**It always fits on one page.** Three mechanisms, in order:
+
+1. **A hard content budget in the prompt** — 45-word summary, 4 bullets per role, 5 skill groups. This does most of the work.
+2. **Mild scaling** — a CV overrunning by a few lines is a formatting problem, so the whole document scales down slightly (never below 0.86, past which it stops looking deliberate and starts looking squeezed).
+3. **Deterministic trimming** — if it still overruns, content is dropped cheapest-first: interests, then personal skills, then projects, then skill caps, then the weakest bullets. Roles are never removed and the most recent one keeps its bullets longest.
+
+The page count is measured from the real PDF rather than estimated, and whatever gets cut is reported in the change table as a **Length** row, so you always know what went. The panel header shows `1 page · scaled to 93%`, or an amber warning in the rare case content is so long it survives all of it.
 
 #### The one rule these follow
 
