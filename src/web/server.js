@@ -10,6 +10,8 @@ import { writeDigest } from '../core/digest.js';
 import { tailor, KINDS } from '../core/tailor.js';
 import { importJob } from '../core/import.js';
 import { loadReferenceDocs } from '../lib/docs.js';
+import { renderCvHtml, renderCvText } from '../core/cv-render.js';
+import { htmlToPdf, pdfAvailable, renderCvPdfFitted } from '../core/pdf.js';
 import { log, c } from '../lib/log.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -108,6 +110,54 @@ async function handle(req, res) {
     } catch (err) {
       return send(res, 422, { error: err.message });
     }
+  }
+
+  // A generated CV is stored as structured data; these render it as a real
+  // document — an A4 page in the browser, or a PDF to send.
+  if (path.startsWith('/cv/')) {
+    const [, , rawId, format] = path.split('/');
+    const doc = getDocument(Number(rawId));
+    if (!doc || doc.kind !== 'cv') return send(res, 404, { error: 'no CV with that id' });
+
+    let cv;
+    try {
+      cv = JSON.parse(doc.content);
+    } catch {
+      return send(res, 422, { error: 'stored CV is not valid structured data — regenerate it' });
+    }
+
+    const html = renderCvHtml(cv);
+    const filename = `CV_${(cv.name || 'cv').replace(/[^\w]+/g, '_')}_${(cv.title || '').replace(/[^\w]+/g, '_').slice(0, 40)}`.replace(/_+$/, '');
+
+    if (format === 'pdf') {
+      // Documents generated before auto-fit existed carry no scale, so fit them
+      // now rather than serving a two-page CV.
+      const bytes = cv.scale
+        ? await htmlToPdf(html)
+        : (await renderCvPdfFitted(cv, renderCvHtml)).bytes;
+
+      if (!bytes) {
+        return send(res, 503, { error: 'no Chrome or Edge available to render a PDF. Open the printable page and use Ctrl+P → Save as PDF instead.' });
+      }
+      res.writeHead(200, {
+        'content-type': 'application/pdf',
+        'content-disposition': `attachment; filename="${filename}.pdf"`,
+        'content-length': bytes.length,
+        'cache-control': 'no-store',
+      });
+      return res.end(bytes);
+    }
+
+    if (format === 'txt') {
+      res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
+      return res.end(renderCvText(cv));
+    }
+
+    return sendHtml(res, 200, html);
+  }
+
+  if (path === '/api/pdf-support') {
+    return send(res, 200, { available: pdfAvailable() });
   }
 
   if (path.startsWith('/api/documents/')) {

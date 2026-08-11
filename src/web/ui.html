@@ -87,6 +87,38 @@
   .sheet h3{margin:0;font-size:15px;flex:1;min-width:180px}
   .sheet .body{padding:18px 22px}
   .doc{white-space:pre-wrap;font:13.5px/1.65 ui-monospace,"Cascadia Code",Consolas,monospace;color:#d7dee6}
+
+  /* --- CV change review --- */
+  .chg{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}
+  .chg th{text-align:left;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:6px 8px;border-bottom:1px solid var(--line)}
+  .chg td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+  .chg tr:last-child td{border-bottom:0}
+  .chg .sect{color:var(--accent);font-weight:600;white-space:nowrap}
+  .before{color:#9aa4b0;text-decoration:line-through;text-decoration-color:rgba(248,81,73,.55)}
+  .after{color:#c8e6c9}
+  .why{color:var(--dim);font-size:12.5px}
+  .gaps{margin-top:14px;background:rgba(210,153,34,.10);border-left:3px solid var(--yellow);border-radius:0 7px 7px 0;padding:10px 13px}
+  .gaps h4{margin:0 0 6px;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--yellow)}
+  .gaps ul{margin:0;padding-left:18px;font-size:13px}
+  /* --- saved document chips --- */
+  .saved{display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center;vertical-align:middle}
+  .saved .lbl{color:var(--dim);font-size:12px}
+  .chip{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);
+        border-radius:20px;padding:2px 4px 2px 10px;font-size:12px;transition:.12s}
+  .chip:hover{border-color:var(--accent)}
+  .chip a{color:var(--fg);text-decoration:none;white-space:nowrap}
+  .chip a:hover{color:var(--accent)}
+  .chip time{color:var(--dim);font-size:11px}
+  .chip .del{opacity:0;width:17px;height:17px;line-height:15px;text-align:center;border-radius:50%;
+             border:0;background:transparent;color:var(--dim);cursor:pointer;font-size:13px;padding:0;transition:.12s}
+  .chip:hover .del{opacity:1}
+  .chip .del:hover{background:rgba(248,81,73,.18);color:var(--red)}
+  .chip.confirming{border-color:var(--red)}
+  .chip.confirming .del{opacity:1;background:rgba(248,81,73,.18);color:var(--red);width:auto;border-radius:10px;padding:0 7px;font-size:11px}
+
+  .cvframe{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff}
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
   .doc h1,.doc h2,.doc h3{font-family:system-ui,sans-serif}
   .working{padding:44px;text-align:center;color:var(--dim)}
   .working .spin{width:22px;height:22px;border-width:3px;display:block;margin:0 auto 14px}
@@ -390,7 +422,14 @@ async function generate(card, id, kind) {
       openModal(`${KIND_LABEL[kind]} — couldn't generate`, data.error || 'unknown error');
       return;
     }
-    openModal(`${KIND_LABEL[kind]} — ${job ? job.title : ''}`, data.content, `${data.model} · $${(data.cost || 0).toFixed(3)}`);
+    // Say which CV it worked from — with two languages on disk, silently
+    // picking the wrong one would be invisible otherwise.
+    const src = data.cvFile
+      ? `${data.cvMatchedLanguage ? '✓' : '⚠'} ${data.cvFile}${data.jobLanguage ? ` · offer detected as ${data.jobLanguage.toUpperCase()}` : ''}`
+      : '';
+    const meta = [`${data.model} · $${(data.cost || 0).toFixed(3)}`, src].filter(Boolean).join(' · ');
+    if (kind === 'cv' && data.structured) openCv(data.id, data.structured, meta);
+    else openModal(`${KIND_LABEL[kind]} — ${job ? job.title : ''}`, data.content, meta);
     showExistingDocs(id);
   } catch (err) {
     openModal(`${KIND_LABEL[kind]} — failed`, String(err));
@@ -401,23 +440,146 @@ async function showExistingDocs(id) {
   const slot = document.getElementById('docs-' + id);
   if (!slot) return;
   const { documents } = await (await fetch('/api/documents?jobId=' + id)).json();
-  if (!documents?.length) { slot.textContent = ''; return; }
-  slot.innerHTML = 'saved: ' + documents.map((d) =>
-    `<a href="#" data-doc="${d.id}">${KIND_LABEL[d.kind] || d.kind}</a>`
-  ).join(' <span class="sep">·</span> ');
+  if (!documents?.length) { slot.innerHTML = ''; return; }
+
+  slot.innerHTML = `<span class="saved"><span class="lbl">saved:</span>` + documents.map((d) => `
+    <span class="chip" data-chip="${d.id}">
+      <a href="#" data-doc="${d.id}">${KIND_LABEL[d.kind] || esc(d.kind)}</a>
+      <time datetime="${esc(d.at)}">${shortWhen(d.at)}</time>
+      <button class="del" data-del="${d.id}" title="Delete this document">×</button>
+    </span>`).join('') + '</span>';
 }
+
+/** Time for today, date otherwise — enough to tell several CVs apart. */
+function shortWhen(iso) {
+  const d = new Date(iso);
+  const today = new Date().toDateString() === d.toDateString();
+  return today
+    ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString([], { day: '2-digit', month: 'short' });
+}
+
+/**
+ * Two-step delete: the × turns into "sure?" rather than firing immediately.
+ * Regenerating a document costs real money, so a stray click shouldn't bin one,
+ * but a modal dialog would be heavy for something this small.
+ */
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest?.('[data-del]');
+
+  // Clicking anywhere else cancels a pending confirmation.
+  if (!btn) {
+    for (const c of document.querySelectorAll('.chip.confirming')) {
+      c.classList.remove('confirming');
+      c.querySelector('.del').textContent = '×';
+    }
+    return;
+  }
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  const chip = btn.closest('.chip');
+  if (!chip.classList.contains('confirming')) {
+    for (const c of document.querySelectorAll('.chip.confirming')) {
+      c.classList.remove('confirming');
+      c.querySelector('.del').textContent = '×';
+    }
+    chip.classList.add('confirming');
+    btn.textContent = 'delete?';
+    return;
+  }
+
+  const id = btn.dataset.del;
+  const res = await fetch('/api/documents/' + id, { method: 'DELETE' });
+  if (!res.ok) return toast('Could not delete that document');
+
+  // If the modal is showing the document that just went, close it.
+  if (openDocId === Number(id)) $('#modal').classList.remove('show');
+
+  toast('Deleted');
+  const card = chip.closest('.card');
+  if (card) showExistingDocs(card.dataset.id);
+});
 
 document.addEventListener('click', async (e) => {
   const docId = e.target.dataset?.doc;
   if (!docId) return;
   e.preventDefault();
   const d = await (await fetch('/api/documents/' + docId)).json();
-  openModal(KIND_LABEL[d.kind] || d.kind, d.content, `${d.model} · ${new Date(d.at).toLocaleString()}`);
+  const meta = `${d.model} · ${new Date(d.at).toLocaleString()}`;
+  if (d.kind === 'cv') {
+    try { return openCv(d.id, JSON.parse(d.content), meta); } catch { /* fall through to raw */ }
+  }
+  openModal(KIND_LABEL[d.kind] || d.kind, d.content, meta);
+  openDocId = Number(docId);
+});
+
+/* ------------------------------------------------------ CV: review + PDF */
+function openCv(docId, cv, meta) {
+  openDocId = Number(docId);
+  $('#modalTitle').textContent = `Tailored CV — ${cv.title || cv.name || ''}`;
+  $('#modalMeta').textContent = meta || '';
+  modalText = null; // the CV is a document, not text to copy
+
+  const changes = (cv.changes || []).map((c) => `
+    <tr>
+      <td class="sect">${esc(c.section || '')}</td>
+      <td>
+        ${c.before && !/^not present$/i.test(c.before) ? `<div class="before">${esc(c.before)}</div>` : '<div class="why">(new)</div>'}
+        <div class="after">${esc(c.after || '')}</div>
+      </td>
+      <td class="why">${esc(c.why || '')}</td>
+    </tr>`).join('');
+
+  const gaps = (cv.gaps || []).length
+    ? `<div class="gaps"><h4>Asked for, but you don't have it</h4><ul>${cv.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul></div>`
+    : '';
+
+  // Page fit is the difference between a CV that gets read and one that doesn't,
+  // so say it plainly rather than leaving it to be discovered on download.
+  const fit = cv.pages
+    ? (cv.fitsOnePage
+        ? `<span style="color:var(--green)">1 page${cv.scale && cv.scale < 1 ? ` · scaled to ${Math.round(cv.scale * 100)}%` : ''}</span>`
+        : `<span style="color:var(--yellow)">⚠ ${cv.pages} pages — too much content</span>`)
+    : '';
+  if (fit) $('#modalMeta').innerHTML = `${esc(meta || '')} · ${fit}`;
+
+  $('#modalBody').innerHTML = `
+    <div class="tabs">
+      <button data-tab="changes" class="on">What changed (${(cv.changes || []).length})</button>
+      <button data-tab="preview">Preview the CV</button>
+      <a href="/cv/${docId}/pdf" download><button class="primary">⬇ Download PDF</button></a>
+      <a href="/cv/${docId}" target="_blank" rel="noopener"><button>Open printable ↗</button></a>
+      <a href="/cv/${docId}/txt" target="_blank" rel="noopener"><button>Plain text</button></a>
+    </div>
+    <div data-panel="changes">
+      ${changes
+        ? `<table class="chg"><thead><tr><th>Section</th><th>Change</th><th>Why</th></tr></thead><tbody>${changes}</tbody></table>`
+        : '<p class="meta">No changes were reported.</p>'}
+      ${gaps}
+    </div>
+    <div data-panel="preview" style="display:none">
+      <iframe class="cvframe" src="/cv/${docId}"></iframe>
+    </div>`;
+
+  $('#modal').classList.add('show');
+}
+
+// Tab switching inside the CV panel.
+$('#modalBody').addEventListener('click', (e) => {
+  const tab = e.target.dataset?.tab;
+  if (!tab) return;
+  for (const b of $('#modalBody').querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === tab);
+  for (const p of $('#modalBody').querySelectorAll('[data-panel]')) p.style.display = p.dataset.panel === tab ? '' : 'none';
 });
 
 /* ---------------------------------------------------------------- modal */
 let modalText = '';
+let openDocId = null; // which saved document the modal is showing, if any
+
 function openModal(title, content, meta) {
+  openDocId = null;
   $('#modalTitle').textContent = title;
   // Show the real character count — the model is told to cap the letter *body*,
   // so seeing the true total is the only way to know where you actually landed.

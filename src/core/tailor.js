@@ -1,8 +1,10 @@
 import { env } from '../config.js';
-import { getBackend } from '../llm/index.js';
+import { getBackend, parseJson } from '../llm/index.js';
 import { loadReferenceDocs } from '../lib/docs.js';
 import { recordSpend, totalSpend, saveDocument } from '../lib/db.js';
-import { truncate } from '../lib/text.js';
+import { truncate, detectLanguage } from '../lib/text.js';
+import { renderCvHtml } from './cv-render.js';
+import { renderCvPdfFitted, pdfAvailable } from './pdf.js';
 
 /**
  * Application-writing tools: what to change in the CV for a given role, a
@@ -65,6 +67,7 @@ Real mismatches. For each: is it fatal, and what is the honest way to address it
 
   cv: {
     model: () => env.claudeModelWrite,
+    json: true,
     system: `You are an expert technical CV writer. You rewrite an existing developer CV so it targets one specific job posting as precisely as possible, without ever misrepresenting the candidate.
 
 ${NEVER_INVENT}
@@ -72,15 +75,47 @@ ${NEVER_INVENT}
 ${ATS_GUIDANCE}
 
 How to tailor:
-- Keep the overall structure of the source CV. It works; do not redesign it.
+- Keep the structure of the source CV. It works; do not redesign it.
 - Reorder experience bullets so the most relevant to THIS posting come first within each role. Never reorder the roles themselves — chronology must stay intact.
-- Rewrite the profile/summary paragraph so it speaks directly to this role.
-- Select which technical skills to show and in what order. Drop skills that are irrelevant here to make room; never add ones the candidate lacks.
-- Where the posting emphasises something the candidate genuinely did, expand that bullet with real detail drawn from the reference documents.
-- Keep it to roughly one page of content. Density beats completeness.
+- Rewrite the summary so it speaks directly to this role.
+- Select which technical skills to show and in what order. Drop groups that are irrelevant here to make room; never add ones the candidate lacks.
+- Where the posting emphasises something the candidate genuinely did, expand that bullet with real detail from the reference documents — including facts that appear in a shared-context section but not on the one-page CV. Those are true and usable.
 - Preserve the candidate's real contact details exactly as given.
 
-Output GitHub-flavoured Markdown, and nothing else before it. The CV comes first, complete and ready to use. Then, after a horizontal rule, add a short section titled "## Tailoring notes (delete before sending)" containing: a bullet list of what you changed and why, and an explicit list of anything the posting asked for that the candidate does not have.`,
+THE CV MUST FIT ON ONE A4 PAGE. This is a hard constraint, not a preference. A two-page CV for a candidate with two years of experience reads as padding, and recruiters skim the first page only. Stay inside this budget:
+
+- summary: 45 words maximum, 2-3 sentences
+- experience: every role from the source CV, but at most 4 bullets each, and at most 22 words per bullet
+- education: at most 2 entries, at most 2 bullets each
+- projects: at most 1, and only if it genuinely strengthens the application for THIS role. Drop it entirely if experience already covers the same ground — it is the first thing to cut
+- skills: at most 5 groups, at most 6 items per group
+- personalSkills: at most 4, and only genuinely differentiating ones. Cut generic traits ("team player", "rigorous")
+- interests: at most 3 short items, or omit the section
+
+Being under budget is good. Selecting hard is the job: a focused one-page CV beats a complete two-page one every time. If you cannot fit everything, cut the content least relevant to this posting — never the most recent role, and never contact details.
+- Write every field in the target language. If the CV is in French, section labels must be French too.
+
+Output ONLY a JSON object, no prose and no markdown fences:
+
+{
+  "language": "fr" | "en",
+  "name": "...",
+  "title": "job title to present as, tuned to the posting",
+  "contact": { "email": "...", "phone": "...", "location": "...", "github": "...", "linkedin": "..." },
+  "summary": "2-3 sentence profile aimed at this role",
+  "labels": { "experience": "...", "education": "...", "projects": "...", "skills": "...", "personalSkills": "...", "languages": "...", "interests": "..." },
+  "experience": [ { "role": "...", "company": "...", "location": "...", "period": "Month Year – Month Year", "bullets": ["..."] } ],
+  "education": [ { "degree": "...", "school": "...", "period": "...", "bullets": ["..."] } ],
+  "projects":  [ { "name": "...", "period": "...", "context": "...", "tech": ["..."], "achievements": ["..."] } ],
+  "skills":    [ { "group": "Main languages", "items": ["..."] } ],
+  "personalSkills": ["..."],
+  "languages": [ { "lang": "...", "level": "..." } ],
+  "interests": ["..."],
+  "changes": [ { "section": "which part of the CV", "before": "the original wording, quoted from the source CV, or 'not present'", "after": "the new wording", "why": "one short sentence tying it to this posting" } ],
+  "gaps": ["something the posting asks for that the candidate genuinely does not have"]
+}
+
+"changes" is important and must be complete: list every substantive edit — rewritten summary, reordered or reworded bullets, skills added or dropped, a changed job title. The reader uses this to review the CV at a glance instead of re-reading it line by line. Keep "before" and "after" short enough to scan (one line each). Do not list trivial punctuation changes.`,
   },
 
   cover: {
@@ -182,6 +217,16 @@ const TASKS = {
   cover: 'Write a cover letter for this specific posting, in the candidate\'s own voice.',
 };
 
+// Plain-English description of what each trim level removed, so the change
+// table says what was cut rather than just that something was.
+const TRIM_SUMMARY = {
+  1: 'Dropped interests and trimmed personal skills',
+  2: 'Dropped interests, personal skills and the projects section',
+  3: 'Also capped skill groups and shortened education detail',
+  4: 'Also reduced experience to the four strongest bullets per role',
+  5: 'Reduced to the essentials only — three bullets per role, no education detail',
+};
+
 const TONES = {
   professional: 'measured and professional, the default register of the template',
   warm: 'warmer and more personable, while still precise',
@@ -204,7 +249,12 @@ export async function tailor(job, kind, options = {}) {
   const backend = getBackend();
   if (!backend) throw new Error('LLM_BACKEND is "none" — set it to claude or ollama to generate documents');
 
-  const docs = loadReferenceDocs();
+  // Which language are we working in? An explicit choice wins; otherwise read it
+  // off the posting itself, so a French offer is answered with the French CV.
+  const jobLang = detectLanguage(`${job.title}\n${job.description ?? ''}`);
+  const targetLang = options.language || jobLang || null;
+
+  const docs = loadReferenceDocs(targetLang);
   if (!docs.cv.text) {
     throw new Error(docs.cv.problem || 'no readable CV found in CV_example/');
   }
@@ -221,24 +271,78 @@ export async function tailor(job, kind, options = {}) {
   const model = spec.model();
   const result = await backend.complete({
     system: spec.system,
-    prompt: buildUserPrompt(kind, job, docs, options),
+    prompt: buildUserPrompt(kind, job, docs, { ...options, language: targetLang }),
     model,
     timeout: Math.max(env.llmTimeoutMs, 420000),
   });
 
   recordSpend({ cost: result.cost, model: result.model, jobs: 1 });
 
-  const content = cleanOutput(result.text);
+  // The CV comes back as structured data so it can be laid out as a real
+  // document; everything else is prose and stays as Markdown.
+  let content = cleanOutput(result.text);
+  let structured = null;
+
+  if (spec.json) {
+    try {
+      structured = parseJson(content);
+    } catch (err) {
+      throw new Error(`the model did not return valid CV data (${err.message}). Try again, or switch CLAUDE_MODEL_WRITE to a stronger model.`);
+    }
+
+    // Find the scale that makes this fit one page, once, at generation time.
+    // Storing it means the preview, the printable page and the PDF all agree,
+    // and reopening a saved CV costs nothing.
+    if (pdfAvailable()) {
+      const fit = await renderCvPdfFitted(structured, renderCvHtml);
+      const changes = structured.changes ?? [];
+
+      // Adopt the version that actually fits, keeping the review metadata from
+      // the original so the change table still reflects the tailoring.
+      structured = { ...fit.cv, changes, gaps: structured.gaps ?? [] };
+      structured.scale = fit.scale;
+      structured.pages = fit.pages;
+      structured.fitsOnePage = fit.fitted;
+      structured.trimLevel = fit.trim;
+
+      if (fit.trim > 0) {
+        structured.changes = [...changes, {
+          section: 'Length',
+          before: 'Ran onto a second page',
+          after: TRIM_SUMMARY[Math.min(fit.trim, 5)],
+          why: 'a CV has to fit one page — cut the least relevant material for this role first',
+        }];
+      }
+
+      if (!fit.fitted) {
+        structured.gaps = [
+          ...structured.gaps,
+          `⚠ Still ${fit.pages} pages after trimming. Regenerate with "make it much shorter" in the notes.`,
+        ];
+      }
+    }
+
+    content = JSON.stringify(structured, null, 2);
+  }
+
+  const sources = {
+    jobLanguage: jobLang,
+    language: targetLang,
+    cvFile: docs.cv.file,
+    cvMatchedLanguage: docs.cv.matchedLanguage,
+    letterFile: kind === 'cover' ? docs.letter.file : undefined,
+  };
+
   const saved = saveDocument({
     jobId: job.id,
     kind,
     content,
     model: result.model,
     cost: result.cost,
-    options,
+    options: { ...options, ...sources },
   });
 
-  return { kind, content, model: result.model, cost: result.cost, id: saved.id, createdAt: saved.at };
+  return { kind, content, structured, model: result.model, cost: result.cost, id: saved.id, createdAt: saved.at, ...sources };
 }
 
 /** Models sometimes wrap a whole document in a fence; unwrap it if so. */
