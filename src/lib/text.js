@@ -119,6 +119,49 @@ export function detectSalary(text = '') {
   return null;
 }
 
+// Function words are the giveaway: they appear constantly in prose and almost
+// never in the shared technical vocabulary that makes FR and EN job posts look
+// alike ("React", "TypeScript", "CI/CD" tell you nothing about the language).
+const FR_MARKERS = ['le', 'la', 'les', 'des', 'une', 'un', 'du', 'et', 'est', 'pour', 'vous', 'nous', 'avec', 'dans', 'sur', 'au', 'aux', 'par', 'plus', 'que', 'qui', 'ce', 'sont', 'chez', 'notre', 'votre', 'ses', 'leur', 'être', 'avoir', 'sera', 'poste', 'équipe', 'entreprise', 'développement', 'expérience', 'compétences', 'missions', 'profil', 'recherche', 'ans'];
+const EN_MARKERS = ['the', 'and', 'of', 'to', 'in', 'for', 'with', 'you', 'we', 'our', 'is', 'are', 'will', 'have', 'has', 'this', 'that', 'as', 'at', 'be', 'your', 'their', 'from', 'team', 'experience', 'skills', 'role', 'company', 'work', 'years', 'about', 'who', 'what'];
+
+/**
+ * Guess whether a block of text is French or English.
+ *
+ * Returns 'fr', 'en', or null when there isn't enough signal to be sure —
+ * null matters, because guessing wrong is worse than falling back to a default.
+ */
+export function detectLanguage(text = '') {
+  const sample = fold(String(text).slice(0, 6000));
+  if (sample.length < 40) return null;
+
+  const words = sample.split(/\s+/);
+  const counts = new Set(words);
+
+  let fr = 0;
+  let en = 0;
+  for (const w of words) {
+    if (FR_MARKERS.includes(w)) fr++;
+    if (EN_MARKERS.includes(w)) en++;
+  }
+
+  // Accented characters and French-specific punctuation are strong extra signal.
+  const accents = (String(text).match(/[éèêëàâçîïôûùü]/gi) || []).length;
+  fr += Math.min(accents / 4, 25);
+
+  // Distinctive French bigrams that survive folding.
+  for (const phrase of ['h f', 'f h', 'cdi', 'cdd', 'tjm', 'teletravail', 'developpeur', 'poste est']) {
+    if (counts.has(phrase) || sample.includes(phrase)) fr += 3;
+  }
+
+  const total = fr + en;
+  if (total < 6) return null;
+  const ratio = fr / total;
+  if (ratio > 0.62) return 'fr';
+  if (ratio < 0.38) return 'en';
+  return null;
+}
+
 /** Stable identity for a posting, so re-runs don't create duplicates. */
 export function jobHash({ company, title, url }) {
   const key = [fold(company).slice(0, 60), fold(title).slice(0, 90), canonicalUrl(url)].join('|');
