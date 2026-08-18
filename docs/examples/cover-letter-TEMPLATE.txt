@@ -10,9 +10,12 @@ sentences, your actual rhythm, your actual level of formality.
 
 What makes the difference:
 
-  - Write it the way you would actually write to a person. If your instinct is to open with a
-    concrete observation rather than "I am writing to apply for", keep that; it will be
-    reproduced.
+  - Write it the way you would actually write to a person: the vocabulary and formality of
+    this file are what get reproduced.
+  - Open plainly. Say which role it is and one concrete thing about yourself. Resist the urge
+    to start with a scene, an aphorism or a general truth about the industry ("There is a
+    moment in every project when...") — it reads as warming up, and whatever opening device
+    you use here, the generator will imitate it on every letter it writes.
   - Include at least one specific story with real detail. Specificity is the thing the
     generator learns most from, and generic source material produces generic output.
   - Leave your placeholders in square brackets — [Company], [Role title], [Date]. They are
@@ -44,9 +47,9 @@ Subject: Application — [Role title]
 Dear [Name],
 
 
-Open with something concrete and true — an observation about the problem the role exists to
-solve, or the moment in your own work that made you care about this kind of engineering. Not
-"I am writing to apply for the position of X, which I saw advertised on Y."
+Say which role this is about and the single most relevant thing about you — no preamble. Then
+one concrete piece of evidence: something you built, and what made it non-trivial. The reader
+should know why you are worth reading by the third line.
 
 
 Second paragraph: your stack, and why it is your stack. What you can follow from end to end.
