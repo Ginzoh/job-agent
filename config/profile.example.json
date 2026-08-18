@@ -68,6 +68,9 @@
     "salary_eur_target": 48000
   },
 
+  "_application_languages_comment": "Languages you can actually WRITE an application in. Generated CVs and cover letters are restricted to these: if an offer is in a language not listed here, English is used instead. A CV in a language you cannot read or defend in an interview is worse than none. Delete this field to always match the offer's language instead.",
+  "application_languages": ["en"],
+
   "languages": [
     { "lang": "French", "level": "native" },
     { "lang": "English", "level": "fluent — comfortable in an English-speaking technical environment" }

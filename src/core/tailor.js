@@ -5,6 +5,7 @@ import { recordSpend, totalSpend, saveDocument } from '../lib/db.js';
 import { truncate, detectLanguage } from '../lib/text.js';
 import { renderCvHtml } from './cv-render.js';
 import { renderCvPdfFitted, pdfAvailable } from './pdf.js';
+import { resolveLanguage, writableLanguages, languageName } from './language.js';
 
 /**
  * Application-writing tools: what to change in the CV for a given role, a
@@ -177,11 +178,19 @@ function buildUserPrompt(kind, job, docs, options) {
   parts.push('');
 
   const req = [];
-  const lang = options.language === 'fr' ? 'French' : options.language === 'en' ? 'English' : null;
-  if (lang) {
-    req.push(`Write in ${lang}.${lang === 'French' ? ' Use natural professional French, not translated English.' : ''}`);
+
+  // The language is resolved before we get here, against what the candidate can
+  // actually write. Never tell the model to "match the posting" — that is how a
+  // Swedish advert produced a Swedish CV for someone who does not read Swedish.
+  if (options.language) {
+    const lang = languageName(options.language);
+    req.push(
+      `Write EVERYTHING in ${lang} — summary, bullets, section labels, all of it. ` +
+      `Use natural professional ${lang}, not translated English. ` +
+      `Do this even if the job posting is written in a different language: the candidate needs a document they can read, check and defend in an interview.`
+    );
   } else {
-    req.push('Write in the same language as the job posting. If the posting is in French, write in French.');
+    req.push('Write in the same language as the job posting.');
   }
 
   if (kind === 'cover') {
@@ -249,10 +258,15 @@ export async function tailor(job, kind, options = {}) {
   const backend = getBackend();
   if (!backend) throw new Error('LLM_BACKEND is "none" — set it to claude or ollama to generate documents');
 
-  // Which language are we working in? An explicit choice wins; otherwise read it
-  // off the posting itself, so a French offer is answered with the French CV.
+  // Which language are we working in? An explicit choice wins, then the offer's
+  // own language if the candidate writes it, then English as the fallback.
   const jobLang = detectLanguage(`${job.title}\n${job.description ?? ''}`);
-  const targetLang = options.language || jobLang || null;
+  const writable = writableLanguages();
+  const { language: targetLang, reason: languageReason } = resolveLanguage({
+    requested: options.language,
+    jobLang,
+    writable,
+  });
 
   const docs = loadReferenceDocs(targetLang);
   if (!docs.cv.text) {
@@ -328,6 +342,8 @@ export async function tailor(job, kind, options = {}) {
   const sources = {
     jobLanguage: jobLang,
     language: targetLang,
+    languageReason,
+    writableLanguages: writable,
     cvFile: docs.cv.file,
     cvMatchedLanguage: docs.cv.matchedLanguage,
     letterFile: kind === 'cover' ? docs.letter.file : undefined,

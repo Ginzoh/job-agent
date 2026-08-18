@@ -337,8 +337,8 @@ function detailHtml(j) {
 
     <div class="opts">
       <label>Language
-        <select data-opt="language">
-          <option value="">auto (match posting)</option>
+        <select data-opt="language" title="Auto uses the offer's language when you write it, otherwise English">
+          <option value="">auto (your languages)</option>
           <option value="fr">Français</option>
           <option value="en">English</option>
         </select>
@@ -422,11 +422,13 @@ async function generate(card, id, kind) {
       openModal(`${KIND_LABEL[kind]} — couldn't generate`, data.error || 'unknown error');
       return;
     }
-    // Say which CV it worked from — with two languages on disk, silently
-    // picking the wrong one would be invisible otherwise.
-    const src = data.cvFile
-      ? `${data.cvMatchedLanguage ? '✓' : '⚠'} ${data.cvFile}${data.jobLanguage ? ` · offer detected as ${data.jobLanguage.toUpperCase()}` : ''}`
-      : '';
+    // Say which CV it worked from and why that language. Writing in a language
+    // the user didn't expect would otherwise look like a bug.
+    const src = [
+      data.cvFile ? `${data.cvMatchedLanguage ? '✓' : '⚠'} ${data.cvFile}` : '',
+      data.language ? `written in ${data.language.toUpperCase()}` : '',
+      data.languageReason && data.languageReason !== 'matched the offer' ? `(${data.languageReason})` : '',
+    ].filter(Boolean).join(' · ');
     const meta = [`${data.model} · $${(data.cost || 0).toFixed(3)}`, src].filter(Boolean).join(' · ');
     if (kind === 'cv' && data.structured) openCv(data.id, data.structured, meta);
     else openModal(`${KIND_LABEL[kind]} — ${job ? job.title : ''}`, data.content, meta);
