@@ -48,15 +48,31 @@ export const filters = readJson('filters.json');
 export const sources = readJson('sources.json');
 
 /**
- * Short fingerprint of everything that affects a verdict: who you are, and the
- * thresholds a score is turned into a status with.
+ * Short fingerprint of everything that affects a verdict: who you are, the
+ * thresholds that turn a score into a status, and the scoring prompt itself.
+ *
+ * The prompt matters as much as the profile. Without it in the hash, rewriting
+ * the scoring rules would leave every fingerprint unchanged and `yarn rescore`
+ * would cheerfully report that everything was up to date while every verdict
+ * had been reached under the old rules.
  *
  * Stored alongside each score so `--rescore` can tell "judged against the
  * current profile" from "judged against an older one". Without it, rescoring
  * repeatedly just re-pays for work it already did.
  */
+function scoringPromptText() {
+  // Read rather than import: score.js already depends on this module, so an
+  // import would be circular. The file holds nothing but the prompt, so its
+  // contents change only when the scoring rules actually change.
+  try {
+    return readFileSync(join(ROOT, 'src', 'core', 'scoring-prompt.js'), 'utf8');
+  } catch {
+    return ''; // missing file is a build problem, not a reason to crash here
+  }
+}
+
 export const profileFingerprint = createHash('sha1')
-  .update(JSON.stringify(profile) + JSON.stringify(filters.scoring ?? {}))
+  .update(JSON.stringify(profile) + JSON.stringify(filters.scoring ?? {}) + scoringPromptText())
   .digest('hex')
   .slice(0, 12);
 
