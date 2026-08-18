@@ -35,17 +35,33 @@ Scoring guidance:
 - 30-49:  weak. Mostly wrong stack or wrong kind of role.
 - 0-29:   reject. Wrong discipline, wrong location, a dealbreaker, or content-free recruiter spam.
 
-IMPORTANT — how to treat years of experience:
-A posting's stated years requirement is a soft preference, not a hard gate. Employers routinely ask for more than the job needs, and strong candidates are hired below the stated number all the time. This is especially true in France, where "3-5 ans d'expérience" is close to boilerplate.
+HOW TO TREAT YEARS OF EXPERIENCE
 
-So: do NOT reject an otherwise good match just because the candidate has fewer years than the posting asks for. A candidate with 2 years should still be scored as a good fit for a role asking 3, 4 or even 5, provided the stack and the actual responsibilities line up. Mention the gap in "cons" if it's worth knowing — but let it cost only a few points, not thirty.
+Score on the likelihood of actually being hired, not on how impressive the posting sounds. A perfect stack match the candidate will never be shortlisted for is worth less to them than a decent match they are genuinely competitive for.
 
-Treat the experience gap as genuinely serious only when:
-- the posting asks for roughly triple the candidate's experience or more, or
-- the role is explicitly senior/lead/staff/principal WITH team-leading, architecture-ownership or line-management duties, or
-- it demands deep expertise in a specific technology the candidate has never used.
+Stated year requirements are soft — employers ask for more than they need, and "3-5 ans d'expérience" is close to boilerplate in France. But soft does not mean ignorable: a one-year gap and a five-year gap are not the same thing, and scoring them alike sends the candidate chasing roles they will not get while burying the ones they would.
 
-Judge on demonstrated capability — what they have actually built and shipped — ahead of the year count.
+Work from the gap between the candidate's real experience and the posting's stated minimum. Where a RANGE is given, use the LOWER bound: "3-5 ans" for a candidate with 2 years is a gap of 1, not 3.
+
+- Gap of 0-1 years — no deduction. Do not even raise it as a con unless something else compounds it.
+- Gap of 2 years — real but crossable. Cap the score at about 72 unless the stack match is exceptional. Note it in "cons".
+- Gap of 3 years — unlikely to be shortlisted without something outstanding elsewhere. Cap at about 62.
+- Gap of 4 or more years — cap at 45. A flawless stack match does not fix this; these roles go to people who have the years.
+
+Where NO figure is given, do not invent one. Judge on the described responsibilities and the seniority word in the title.
+
+Independently of the number: a role that is explicitly senior/lead/staff/principal WITH team-leading, architecture-ownership or line-management duties is a poor fit regardless of how the years are phrased.
+
+ROLES WHERE THIS CANDIDATE IS THE EXPECTED APPLICANT — score these UP
+
+This side matters just as much, and is easy to under-weight. A posting written for someone at exactly this stage deserves to outrank a generic good-stack match, because the candidate is competitive rather than hopeful. Add real weight, and say so in "pros", when a posting shows:
+
+- A QUALIFICATION requirement instead of a years requirement — "Bac+5", "Master en informatique", "diplôme d'ingénieur", "MSc in Computer Science", "formation supérieure en informatique". These filter on a credential the candidate holds rather than on time served, and are among the strongest positive signals available.
+- Explicit openness to early-career applicants: "junior", "débutant accepté", "jeune diplômé", "première expérience", "1-3 ans", "profil junior ou confirmé", "graduate", "entry level", "0-2 years". (Student-only formats — stage, alternance, apprentissage — are excluded elsewhere and are not this.)
+- Language about training, mentoring, onboarding, pair programming or a progression path: a team that expects to develop someone rather than buy finished expertise.
+- Responsibilities framed as building features and owning delivery, rather than defining architecture, setting technical direction or leading others.
+
+Concretely: a role asking Bac+5 with 0-2 years on a React/Node stack should score HIGHER than a role asking 5 years on an identical stack. The first is a job the candidate can get; the second is one they will be filtered out of.
 
 Penalise heavily: an explicit dealbreaker from the profile, a core required stack the candidate does not have at all, or a location they cannot work from.
 Reward: an explicitly stated salary or TJM, a named product company, modern TypeScript tooling, and a clearly described mission.`;
