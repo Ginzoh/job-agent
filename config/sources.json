@@ -32,11 +32,12 @@
                        "contracts": ["contractor", "permanent"],
                        "items_per_page": 100,
                        "max_pages": 3,
-                       "_queries_comment": "The `luxembourg` query is how Luxembourg coverage happens: Free-Work carries ~55 Luxembourg postings and about 90% of them are genuinely located there. Cheaper and more reliable than scraping a Luxembourg board — Moovijob and jobs.lu are JS apps with no feed and no structured data.",
+                       "_queries_comment": "Free-Work is also how Luxembourg and Belgium are covered — the boards in those countries publish no usable feed (Moovijob, jobs.lu, Jobat are JS apps; VDAB's API returns 403). Free-Work carries ~55 Luxembourg and ~101 Belgian postings, ~90% genuinely located there. Query terms were chosen by measuring unique yield. Note Free-Work is French-language: Dutch queries (antwerpen, gent, leuven) return nothing, so Flanders is thin while Brussels and Wallonia are well covered.",
                        "queries": [
                          "react", "node.js", "typescript", "javascript",
                          "développeur fullstack", "développeur front-end", "next.js",
-                         "luxembourg", "développeur luxembourg"
+                         "luxembourg", "développeur luxembourg",
+                         "bruxelles", "belgique", "liege", "anvers", "charleroi", "namur"
                        ] },
     "adzuna":        { "enabled": true,  "needs_key": true,
                        "_comment": "Best France coverage. Free key at https://developer.adzuna.com/signup",

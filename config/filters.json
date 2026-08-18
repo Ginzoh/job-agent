@@ -41,7 +41,12 @@
       "grand est", "grand-est", "alsace", "bas-rhin", "haut-rhin", "moselle",
 
       "_comment: cross-border, all within commuting or relocation range of Strasbourg",
-      "luxembourg", "luxemburg", "belgium", "belgique", "brussels", "bruxelles", "liege", "liège",
+      "luxembourg", "luxemburg",
+      "belgium", "belgique", "belgie", "belgië", "brussels", "bruxelles", "brussel",
+      "liege", "liège", "luik", "charleroi", "namur", "namen", "mons", "bergen",
+      "anvers", "antwerpen", "antwerp", "gand", "gent", "ghent", "louvain", "leuven",
+      "bruges", "brugge", "hasselt", "mechelen", "malines", "wavre", "tournai",
+      "wallonie", "wallonia", "flandre", "vlaanderen", "brabant",
       "switzerland", "suisse", "geneva", "geneve", "genève", "lausanne", "basel", "bale", "bâle", "zurich",
       "germany", "allemagne", "deutschland", "karlsruhe", "freiburg", "fribourg", "stuttgart", "offenburg", "kehl",
 
