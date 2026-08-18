@@ -41,7 +41,7 @@ export const pdfAvailable = () => !!findBrowser();
  * Render HTML to PDF bytes. Resolves to null when no browser is available, so
  * callers can fall back to offering the printable page instead of failing.
  */
-export async function htmlToPdf(html, { timeout = 60000 } = {}) {
+export async function htmlToPdf(html, { timeout = 30000 } = {}) {
   const browser = findBrowser();
   if (!browser) {
     log.warn('no Chrome or Edge found — cannot render PDF server-side');
@@ -148,13 +148,22 @@ export function trimCv(cv, level) {
  * Each attempt is a genuine render: producing the PDF is the only way to know
  * the true page count.
  */
-export async function renderCvPdfFitted(cv, renderHtml, { maxPages = 1, scales = [1, 0.93, 0.86], maxTrim = 5 } = {}) {
+export async function renderCvPdfFitted(cv, renderHtml, { maxPages = 1, scales = [1, 0.93, 0.86], maxTrim = 5, deadlineMs = 90000 } = {}) {
   let last = null;
+  const startedAt = Date.now();
 
   for (let level = 0; level <= maxTrim; level++) {
     const candidate = level === 0 ? cv : trimCv(cv, level);
 
     for (const scale of scales) {
+      // Every attempt is a real browser render. Without an overall budget the
+      // worst case is 18 renders x their individual timeout, which is minutes of
+      // apparent hang for a document that is already good enough to hand back.
+      if (Date.now() - startedAt > deadlineMs) {
+        log.warn(`CV fitting hit its ${Math.round(deadlineMs / 1000)}s budget — returning the best version so far`);
+        return last ?? { bytes: null, pages: 0, scale, trim: level, cv: candidate, fitted: false };
+      }
+
       const bytes = await htmlToPdf(renderHtml(candidate, { scale }));
       if (!bytes) return { bytes: null, pages: 0, scale, trim: level, cv: candidate, fitted: false };
 
@@ -178,7 +187,16 @@ function run(cmd, args, timeout) {
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      child.kill();
+      // Headless Chrome/Edge fans out into a tree of renderer and GPU
+      // processes. Killing only the launcher leaves them running and holding
+      // the temp directory open, which is a slow leak and a source of hangs.
+      if (process.platform === "win32" && child.pid) {
+        try {
+          spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+        } catch { try { child.kill(); } catch { /* already gone */ } }
+      } else {
+        try { child.kill("SIGKILL"); } catch { /* already gone */ }
+      }
       reject(new Error(`timed out after ${Math.round(timeout / 1000)}s`));
     }, timeout);
 

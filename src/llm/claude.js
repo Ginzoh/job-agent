@@ -132,6 +132,30 @@ export async function available() {
   }
 }
 
+/**
+ * Terminate a spawned process AND anything it started.
+ *
+ * child.kill() only signals the direct child. On Windows that leaves any
+ * grandchildren alive holding the stdio pipes open, so Node never sees the
+ * streams close and the whole run hangs indefinitely — the timeout fires, the
+ * promise rejects, and the process still refuses to exit. taskkill /T walks the
+ * tree. Nothing here is user input: the only interpolation is a numeric pid.
+ */
+function killTree(child) {
+  const pid = child.pid;
+  if (!pid) return;
+
+  if (process.platform === "win32") {
+    try {
+      spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" })
+        .on("error", () => { try { child.kill(); } catch { /* already gone */ } });
+      return;
+    } catch { /* fall through to the plain kill below */ }
+  }
+
+  try { child.kill("SIGKILL"); } catch { /* already gone */ }
+}
+
 function run(args, stdin, timeout) {
   return new Promise((resolve, reject) => {
     const bin = findBinary();
@@ -155,7 +179,7 @@ function run(args, stdin, timeout) {
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      child.kill();
+      killTree(child);
       reject(new Error(`timed out after ${Math.round(timeout / 1000)}s`));
     }, timeout);
 
