@@ -85,7 +85,7 @@ export const id = 'claude';
  * per call down to almost nothing, which is the difference between burning
  * through your rate limit in one run and barely touching it.
  */
-export async function complete({ system, prompt, timeout = env.llmTimeoutMs, model }) {
+export async function complete({ system, prompt, timeout = env.llmTimeoutMs, model, tools }) {
   const args = [
     '-p',
     '--model', model || env.claudeModel,
@@ -95,6 +95,11 @@ export async function complete({ system, prompt, timeout = env.llmTimeoutMs, mod
     '--setting-sources', '',
     '--strict-mcp-config',
   ];
+
+  // Tools stay off unless a caller explicitly asks. Scoring and CV writing want
+  // a sealed prompt with no ability to wander off; only job discovery needs the
+  // web, and it pays for that in both latency and tokens.
+  if (Array.isArray(tools) && tools.length) args.push('--allowedTools', ...tools);
 
   const raw = await run(args, prompt, timeout);
 

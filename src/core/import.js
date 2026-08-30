@@ -54,7 +54,7 @@ export async function importJob({ url, text, title, company }) {
   return { job: getJob(job.id), isNew };
 }
 
-async function fromUrl(url) {
+export async function fromUrl(url) {
   const html = await getText(url, { timeout: 25000, retries: 1 });
   if (!html) return { description: '' };
 

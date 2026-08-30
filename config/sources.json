@@ -1,72 +1,200 @@
 {
   "_comment": "Which job sources to poll. Set `enabled: false` to turn one off. Sources marked `needs_key` silently skip themselves when the matching .env keys are absent.",
-
   "aggregators": {
-    "remotive":      { "enabled": true,  "needs_key": false, "queries": ["react", "frontend", "fullstack", "node"] },
-    "remoteok":      { "enabled": true,  "needs_key": false, "tags": ["react", "javascript", "node", "frontend", "typescript"] },
-    "arbeitnow":     { "enabled": true,  "needs_key": false, "max_pages": 3 },
-    "weworkremotely":{ "enabled": true,  "needs_key": false,
-                       "feeds": [
-                         "https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss",
-                         "https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss",
-                         "https://weworkremotely.com/categories/remote-back-end-programming-jobs.rss",
-                         "https://weworkremotely.com/categories/remote-programming-jobs.rss"
-                       ] },
-    "jobtech":       { "enabled": true,  "needs_key": false,
-                       "_comment": "Sweden's national job bank (Platsbanken), published as open data by Arbetsförmedlingen at jobtechdev.se. No key, no registration, properly structured records. Query in Swedish where possible — 'fullstack utvecklare' returns 119 matches against 6 for 'frontend developer', because the adverts are written in Swedish. Max 100 results per page.",
-                       "items_per_page": 100,
-                       "max_pages": 2,
-                       "queries": [
-                         "react", "node.js", "typescript", "javascript",
-                         "fullstack utvecklare", "frontend utvecklare",
-                         "webbutvecklare", "systemutvecklare javascript"
-                       ] },
-    "jobindex":      { "enabled": true,  "needs_key": false,
-                       "_comment": "Jobindex.dk — the main Danish job board. No public API (robots.txt disallows /api/), but its RSS feed is open and honours search terms. Capped at ~20 results per query because robots.txt disallows pagination — add more queries rather than expecting depth. Requires Denmark in filters.json location.accept, which is set.",
-                       "queries": ["react", "node.js", "typescript", "frontend udvikler", "fullstack udvikler", "javascript"] },
-    "hackernews":    { "enabled": true,  "needs_key": false,
-                       "_comment": "Parses the monthly 'Ask HN: Who is hiring?' + 'Freelancer? Seeking freelancer?' threads. Excellent for remote & freelance leads.",
-                       "months_back": 3 },
-    "freework":      { "enabled": true,  "needs_key": false,
-                       "_comment": "Free-Work (ex Carrière Info) — the main French freelance/IT board, ~10k live postings. Best source for missions with a real stated TJM. `contracts`: contractor = freelance/mission, permanent = CDI, fixed-term = CDD.",
-                       "contracts": ["contractor", "permanent"],
-                       "items_per_page": 100,
-                       "max_pages": 3,
-                       "_queries_comment": "Free-Work is also how Luxembourg and Belgium are covered — the boards in those countries publish no usable feed (Moovijob, jobs.lu, Jobat are JS apps; VDAB's API returns 403). Free-Work carries ~55 Luxembourg and ~101 Belgian postings, ~90% genuinely located there. Query terms were chosen by measuring unique yield. Note Free-Work is French-language: Dutch queries (antwerpen, gent, leuven) return nothing, so Flanders is thin while Brussels and Wallonia are well covered.",
-                       "queries": [
-                         "react", "node.js", "typescript", "javascript",
-                         "développeur fullstack", "développeur front-end", "next.js",
-                         "luxembourg", "développeur luxembourg",
-                         "bruxelles", "belgique", "liege", "anvers", "charleroi", "namur"
-                       ] },
-    "adzuna":        { "enabled": true,  "needs_key": true,
-                       "_comment": "Best France coverage. Free key at https://developer.adzuna.com/signup",
-                       "country": "fr", "max_pages": 4,
-                       "queries": ["développeur react", "développeur fullstack", "frontend react", "node.js", "freelance react"] },
-    "francetravail": { "enabled": true,  "needs_key": true,
-                       "_comment": "Official French public job API. Free key at https://francetravail.io. Queries below were chosen by measuring how many UNIQUE offers each one adds — `motsCles` matches literally, so spacing and hyphens matter: 'full stack' and 'fullstack' return substantially different sets, while 'front end' and 'front-end' return the same one. Deliberately excluded: 'développeur angular' and 'développeur php symfony' — high volume, wrong stack, and they'd cost LLM budget only to be scored down.",
-                       "queries": [
-                         "développeur react",
-                         "développeur javascript",
-                         "développeur fullstack",
-                         "développeur full stack",
-                         "développeur front-end",
-                         "développeur web",
-                         "ingénieur développement web",
-                         "développeur logiciel web",
-                         "concepteur développeur applications",
-                         "développeur node.js",
-                         "développeur typescript"
-                       ],
-                       "_departments_comment": "Empty = the whole of France. Set e.g. [\"67\",\"68\",\"57\",\"54\"] to restrict to Grand Est.",
-                       "departments": [] }
+    "remotive": {
+      "enabled": true,
+      "needs_key": false,
+      "queries": [
+        "react",
+        "frontend",
+        "fullstack",
+        "node"
+      ]
+    },
+    "remoteok": {
+      "enabled": true,
+      "needs_key": false,
+      "tags": [
+        "react",
+        "javascript",
+        "node",
+        "frontend",
+        "typescript"
+      ]
+    },
+    "arbeitnow": {
+      "enabled": true,
+      "needs_key": false,
+      "max_pages": 3
+    },
+    "weworkremotely": {
+      "enabled": true,
+      "needs_key": false,
+      "feeds": [
+        "https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss",
+        "https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss",
+        "https://weworkremotely.com/categories/remote-back-end-programming-jobs.rss",
+        "https://weworkremotely.com/categories/remote-programming-jobs.rss"
+      ]
+    },
+    "jobtech": {
+      "enabled": true,
+      "needs_key": false,
+      "_comment": "Sweden's national job bank (Platsbanken), published as open data by Arbetsförmedlingen at jobtechdev.se. No key, no registration, properly structured records. Query in Swedish where possible — 'fullstack utvecklare' returns 119 matches against 6 for 'frontend developer', because the adverts are written in Swedish. Max 100 results per page.",
+      "items_per_page": 100,
+      "max_pages": 2,
+      "queries": [
+        "react",
+        "node.js",
+        "typescript",
+        "javascript",
+        "fullstack utvecklare",
+        "frontend utvecklare",
+        "webbutvecklare",
+        "systemutvecklare javascript"
+      ]
+    },
+    "jobindex": {
+      "enabled": true,
+      "needs_key": false,
+      "_comment": "Jobindex.dk — the main Danish job board. No public API (robots.txt disallows /api/), but its RSS feed is open and honours search terms. Capped at ~20 results per query because robots.txt disallows pagination — add more queries rather than expecting depth. Requires Denmark in filters.json location.accept, which is set.",
+      "queries": [
+        "react",
+        "node.js",
+        "typescript",
+        "frontend udvikler",
+        "fullstack udvikler",
+        "javascript"
+      ]
+    },
+    "hackernews": {
+      "enabled": true,
+      "needs_key": false,
+      "_comment": "Parses the monthly 'Ask HN: Who is hiring?' + 'Freelancer? Seeking freelancer?' threads. Excellent for remote & freelance leads.",
+      "months_back": 3
+    },
+    "freework": {
+      "enabled": true,
+      "needs_key": false,
+      "_comment": "Free-Work (ex Carrière Info) — the main French freelance/IT board, ~10k live postings. Best source for missions with a real stated TJM. `contracts`: contractor = freelance/mission, permanent = CDI, fixed-term = CDD.",
+      "contracts": [
+        "contractor",
+        "permanent"
+      ],
+      "items_per_page": 100,
+      "max_pages": 3,
+      "_queries_comment": "Free-Work is also how Luxembourg and Belgium are covered — the boards in those countries publish no usable feed (Moovijob, jobs.lu, Jobat are JS apps; VDAB's API returns 403). Free-Work carries ~55 Luxembourg and ~101 Belgian postings, ~90% genuinely located there. Query terms were chosen by measuring unique yield. Note Free-Work is French-language: Dutch queries (antwerpen, gent, leuven) return nothing, so Flanders is thin while Brussels and Wallonia are well covered.",
+      "queries": [
+        "react",
+        "node.js",
+        "typescript",
+        "javascript",
+        "développeur fullstack",
+        "développeur front-end",
+        "next.js",
+        "luxembourg",
+        "développeur luxembourg",
+        "bruxelles",
+        "belgique",
+        "liege",
+        "anvers",
+        "charleroi",
+        "namur"
+      ]
+    },
+    "adzuna": {
+      "enabled": true,
+      "needs_key": true,
+      "_comment": "Best France coverage. Free key at https://developer.adzuna.com/signup",
+      "country": "fr",
+      "max_pages": 4,
+      "queries": [
+        "développeur react",
+        "développeur fullstack",
+        "frontend react",
+        "node.js",
+        "freelance react"
+      ]
+    },
+    "francetravail": {
+      "enabled": true,
+      "needs_key": true,
+      "_comment": "Official French public job API. Free key at https://francetravail.io. Queries below were chosen by measuring how many UNIQUE offers each one adds — `motsCles` matches literally, so spacing and hyphens matter: 'full stack' and 'fullstack' return substantially different sets, while 'front end' and 'front-end' return the same one. Deliberately excluded: 'développeur angular' and 'développeur php symfony' — high volume, wrong stack, and they'd cost LLM budget only to be scored down.",
+      "queries": [
+        "développeur react",
+        "développeur javascript",
+        "développeur fullstack",
+        "développeur full stack",
+        "développeur front-end",
+        "développeur web",
+        "ingénieur développement web",
+        "développeur logiciel web",
+        "concepteur développeur applications",
+        "développeur node.js",
+        "développeur typescript"
+      ],
+      "_departments_comment": "Empty = the whole of France. Set e.g. [\"67\",\"68\",\"57\",\"54\"] to restrict to Grand Est.",
+      "departments": []
+    },
+    "websearch": {
+      "enabled": false,
+      "needs_key": false,
+      "_comment": "Finds postings by searching the web with the claude CLI, reaching sites that publish no API or feed at all. COSTS REAL MONEY: about $0.55 per run against roughly $0.05 for every other source combined, because each run makes ~9 web searches. Off by default for that reason; set enabled:true to use it, and min_hours_between_runs stops a twice-daily schedule paying twice. The model only DISCOVERS urls — every stored field is then read from the live page, and anything that fails to resolve or is not recognisably the advertised posting is dropped, so nothing invented reaches the database. Measured on a real run: 13 candidates in, 5 kept. LinkedIn pages DO fetch while the posting is live (2 Luxembourg jobs came through with full descriptions); what fails is expired listings, which redirect to a generic page. Indeed returns 401 and Welcome to the Jungle 403, so those are always discarded. The steady win is boards with no feed, such as HelloWork.",
+      "model": "sonnet",
+      "max_results": 15,
+      "min_hours_between_runs": 20,
+      "queries": [
+        "Développeur React Node.js Strasbourg ou Grand Est France",
+        "Développeur fullstack JavaScript TypeScript Alsace CDI",
+        "React developer Luxembourg",
+        "Frontend React TypeScript remote France",
+        "Développeur freelance React mission Grand Est"
+      ]
+    }
   },
-
   "company_boards": {
     "_comment": "Direct polling of company ATS boards — these are the freshest listings anywhere, often posted here days before they hit aggregators. All slugs below were verified live. Add your own: find a company's careers page, and if the URL contains boards.greenhouse.io/X, jobs.lever.co/X, or jobs.ashbyhq.com/X, add X here.",
     "enabled": true,
-    "greenhouse": ["doctolib", "datadog", "algolia", "dataiku", "mirakl", "platformsh", "sesamm", "silvr"],
-    "lever": ["qonto", "veepee", "aircall", "malt", "agicap", "scaleway", "360learning", "doctrine", "swile", "contentsquare", "equativ", "blablacar", "vestiairecollective", "younited"],
-    "ashby": ["pennylane", "voodoo", "alan", "sunday", "dust", "poolside", "backmarket", "photoroom", "swan", "ledger", "finary", "sorare", "ankorstore"]
+    "greenhouse": [
+      "doctolib",
+      "datadog",
+      "algolia",
+      "dataiku",
+      "mirakl",
+      "platformsh",
+      "sesamm",
+      "silvr"
+    ],
+    "lever": [
+      "qonto",
+      "veepee",
+      "aircall",
+      "malt",
+      "agicap",
+      "scaleway",
+      "360learning",
+      "doctrine",
+      "swile",
+      "contentsquare",
+      "equativ",
+      "blablacar",
+      "vestiairecollective",
+      "younited"
+    ],
+    "ashby": [
+      "pennylane",
+      "voodoo",
+      "alan",
+      "sunday",
+      "dust",
+      "poolside",
+      "backmarket",
+      "photoroom",
+      "swan",
+      "ledger",
+      "finary",
+      "sorare",
+      "ankorstore"
+    ]
   }
 }

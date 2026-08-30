@@ -5,6 +5,7 @@ import * as weworkremotely from './weworkremotely.js';
 import * as hackernews from './hackernews.js';
 import * as jobindex from './jobindex.js';
 import * as jobtech from './jobtech.js';
+import * as websearch from './websearch.js';
 import * as companyboards from './companyboards.js';
 import * as adzuna from './adzuna.js';
 import * as francetravail from './francetravail.js';
@@ -22,4 +23,5 @@ export const ALL_SOURCES = [
   hackernews,
   jobtech,        // Sweden — national job bank, open data, no key
   jobindex,       // Denmark — RSS, no pagination allowed
+  websearch,      // discovery via web search — costs real money, throttled, off by default
 ];
