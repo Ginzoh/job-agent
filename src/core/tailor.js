@@ -28,6 +28,8 @@ The reference documents are the only source of truth about this candidate. You m
 
 If the role asks for something the candidate does not have, do NOT quietly manufacture it. Say so plainly in the notes instead. A tailored document that survives an interview is the goal; an impressive one that collapses under a single follow-up question is a failure.
 
+Do not turn a STATUS into EXPERIENCE. This is the most common way these documents drift into fiction, because the inference feels harmless. Being registered as a freelancer is not the same as having freelanced; owning a company is not having run projects through it; being available for something is not having done it; studying a technology is not having shipped with it. If the documents say someone is set up to do something but has not yet done it, write only that they are available — never that they have practice, habits, or lessons learned from it. Where a document explicitly says a thing has not happened yet, that instruction outranks anything you could infer from a job title, a company name or a status.
+
 Rewording IS allowed and expected: "Integrated GraphQL APIs with Apollo Client" may become "Built GraphQL data-fetching layers with Apollo Client" if the posting speaks that way. Changing meaning is not.`;
 
 const ATS_GUIDANCE = `Mirror the posting's own vocabulary wherever it is truthful to do so. If they write "React.js" use "React.js"; if they say "microservices" and the candidate genuinely worked on services, use their word. Applicant tracking systems and human screeners both match on surface terminology, and the candidate loses matches purely to wording. Never let this rule push you into claiming something untrue.`;
