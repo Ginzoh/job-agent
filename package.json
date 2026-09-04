@@ -22,7 +22,9 @@
     "web": "node --no-warnings src/cli.js web",
     "watch": "node --no-warnings src/cli.js watch",
     "doctor": "node --no-warnings src/cli.js doctor",
-    "stats": "node --no-warnings src/cli.js stats"
+    "stats": "node --no-warnings src/cli.js stats",
+    "companies": "node --no-warnings src/cli.js companies",
+    "companies:score": "node --no-warnings src/cli.js companies:score"
   },
   "dependencies": {}
 }

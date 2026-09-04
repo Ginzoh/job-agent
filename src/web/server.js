@@ -11,12 +11,18 @@ import { tailor, KINDS } from '../core/tailor.js';
 import { importJob } from '../core/import.js';
 import { loadReferenceDocs } from '../lib/docs.js';
 import { renderCvHtml, renderCvText } from '../core/cv-render.js';
+import { renderHome } from './home.js';
+import { renderCompanies } from './companies-ui.js';
+import { listCompanies, getCompany, setCompanyStatus, companyStats } from '../lib/db.js';
+import { discoverCompanies, scoreCompanies, asPseudoJob } from '../core/companies.js';
 import { htmlToPdf, pdfAvailable, renderCvPdfFitted } from '../core/pdf.js';
 import { log, c } from '../lib/log.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const sessions = new Set();
 let pipelineBusy = false;
+let discoverBusy = false;
+let scoreBusy = false;
 
 export function startWeb() {
   const server = createServer(async (req, res) => {
@@ -63,7 +69,16 @@ async function handle(req, res) {
 
   // --- pages ----------------------------------------------------------
   if (path === '/' || path === '/index.html') {
+    return sendHtml(res, 200, renderHome());
+  }
+
+  // The job dashboard moved off the root when the app grew a second workflow.
+  if (path === '/jobs') {
     return sendHtml(res, 200, readFileSync(join(HERE, 'ui.html'), 'utf8'));
+  }
+
+  if (path === '/companies') {
+    return sendHtml(res, 200, renderCompanies());
   }
 
   // --- api ------------------------------------------------------------
@@ -100,7 +115,18 @@ async function handle(req, res) {
   // --- CV / cover-letter generation -----------------------------------
   if (path === '/api/tailor' && req.method === 'POST') {
     const body = await readBody(req);
-    const job = getJob(body.jobId);
+
+    // A speculative target has no posting, so one is synthesised from what is
+    // known about the company. That keeps a single implementation of all three
+    // writing tools rather than a parallel set that would drift apart.
+    let job;
+    if (body.companyId) {
+      const co = getCompany(body.companyId);
+      if (!co) return send(res, 404, { error: 'no such company' });
+      job = asPseudoJob(co);
+    } else {
+      job = getJob(body.jobId);
+    }
     if (!job) return send(res, 404, { error: 'no such job' });
     if (!KINDS.includes(body.kind)) return send(res, 400, { error: `kind must be one of: ${KINDS.join(', ')}` });
 
@@ -200,6 +226,61 @@ async function handle(req, res) {
     });
   }
 
+  // --- companies ------------------------------------------------------
+  if (path === '/api/companies') {
+    const q = url.searchParams;
+    return send(res, 200, {
+      companies: listCompanies({
+        status: q.get('status') || undefined,
+        minScore: q.get('minScore') ? Number(q.get('minScore')) : undefined,
+        source: q.get('source') || undefined,
+        search: q.get('q') || undefined,
+        order: q.get('order') || 'score',
+        limit: Math.min(Number(q.get('limit')) || 100, 300),
+      }),
+    });
+  }
+
+  if (path === '/api/companies/stats') return send(res, 200, companyStats());
+
+  if (path === '/api/companies/discover' && req.method === 'POST') {
+    if (discoverBusy) return send(res, 409, { error: 'discovery already running' });
+    discoverBusy = true;
+    try {
+      const r = await discoverCompanies();
+      const added = Object.values(r).reduce((n, x) => n + (x?.added ?? 0), 0);
+      return send(res, 200, { ok: true, added, detail: r });
+    } catch (err) {
+      return send(res, 500, { error: err.message });
+    } finally {
+      discoverBusy = false;
+    }
+  }
+
+  if (path === '/api/companies/score' && req.method === 'POST') {
+    if (scoreBusy) return send(res, 409, { error: 'scoring already running' });
+    scoreBusy = true;
+    send(res, 202, { ok: true, started: true });
+    scoreCompanies({ limit: 60 })
+      .then((r) => log.ok(`companies scored: ${r.scored}, ${r.strong} strong`))
+      .catch((e) => log.error(e.message))
+      .finally(() => { scoreBusy = false; });
+    return;
+  }
+
+  if (path.startsWith('/api/company/')) {
+    const id = path.split('/').pop();
+    const co = getCompany(id);
+    if (!co) return send(res, 404, { error: 'no such company' });
+    if (req.method === 'GET') return send(res, 200, co);
+    if (req.method === 'POST') {
+      const body = await readBody(req);
+      if (!VALID_COMPANY_STATUS.has(body.status)) return send(res, 400, { error: 'invalid status' });
+      setCompanyStatus(id, body.status, body.notes);
+      return send(res, 200, { ok: true });
+    }
+  }
+
   if (path === '/api/stats') return send(res, 200, { ...stats(), runs: lastRuns(8) });
 
   if (path === '/api/run' && req.method === 'POST') {
@@ -225,6 +306,7 @@ async function handle(req, res) {
 }
 
 const VALID_STATUS = new Set(['new', 'reviewed', 'shortlisted', 'applied', 'rejected', 'archived']);
+const VALID_COMPANY_STATUS = new Set(['new', 'reviewed', 'shortlisted', 'contacted', 'rejected', 'archived']);
 
 /** Trim the heavy description field out of list responses. */
 function slim(j) {

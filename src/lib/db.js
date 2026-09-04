@@ -88,6 +88,44 @@ function migrate(d) {
 
     CREATE INDEX IF NOT EXISTS idx_docs_job ON documents(job_id, kind, at DESC);
 
+    -- Companies worth approaching without them having advertised anything.
+    -- Deliberately separate from jobs: a company is a standing target that stays
+    -- relevant for months, whereas a posting is a dated event that expires.
+    CREATE TABLE IF NOT EXISTS companies (
+      id             TEXT PRIMARY KEY,
+      name           TEXT NOT NULL,
+      source         TEXT NOT NULL,
+      location       TEXT,
+      website        TEXT,
+      siren          TEXT,
+      naf            TEXT,
+      size           TEXT,
+      description    TEXT,
+      evidence       TEXT,
+      job_count      INTEGER DEFAULT 0,
+      best_job_score INTEGER,
+      sample_titles  TEXT,
+
+      score          INTEGER,
+      verdict        TEXT,
+      fit_summary    TEXT,
+      pros           TEXT,
+      cons           TEXT,
+      pitch          TEXT,
+      approach       TEXT,
+      scored_at      TEXT,
+      scored_by      TEXT,
+      scored_profile TEXT,
+
+      status         TEXT NOT NULL DEFAULT 'new',
+      notes          TEXT,
+      first_seen     TEXT NOT NULL,
+      updated_at     TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_co_status ON companies(status);
+    CREATE INDEX IF NOT EXISTS idx_co_score  ON companies(score DESC);
+
     CREATE TABLE IF NOT EXISTS runs (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       started_at  TEXT,
@@ -448,5 +486,135 @@ function hydrate(row) {
     stack: parse(row.stack, []),
     pros: parse(row.pros, []),
     cons: parse(row.cons, []),
+  };
+}
+
+
+/* ------------------------------------------------------------- companies */
+
+/**
+ * Insert a company, or merge fresh evidence into one already known.
+ *
+ * Discovery runs from several angles and they overlap: the registry knows a
+ * company's legal size and address, the jobs table knows it actually hires this
+ * profile. Neither alone is the full picture, so a second sighting fills gaps
+ * rather than overwriting what the first found.
+ */
+export function upsertCompany(co) {
+  const d = getDb();
+  const existing = d.prepare('SELECT id FROM companies WHERE id = ?').get(co.id);
+
+  if (existing) {
+    d.prepare(`
+      UPDATE companies SET
+        location       = COALESCE(NULLIF(?, ''), location),
+        website        = COALESCE(NULLIF(?, ''), website),
+        siren          = COALESCE(NULLIF(?, ''), siren),
+        naf            = COALESCE(NULLIF(?, ''), naf),
+        size           = COALESCE(NULLIF(?, ''), size),
+        description    = COALESCE(NULLIF(?, ''), description),
+        evidence       = COALESCE(NULLIF(?, ''), evidence),
+        job_count      = MAX(COALESCE(job_count, 0), ?),
+        best_job_score = MAX(COALESCE(best_job_score, 0), COALESCE(?, 0)),
+        sample_titles  = COALESCE(NULLIF(?, '[]'), sample_titles),
+        source         = CASE WHEN instr(source, ?) > 0 THEN source ELSE source || '+' || ? END,
+        updated_at     = ?
+      WHERE id = ?`).run(
+      co.location ?? '', co.website ?? '', co.siren ?? '', co.naf ?? '',
+      co.size ?? '', co.description ?? '', co.evidence ?? '',
+      co.job_count ?? 0, co.best_job_score ?? null,
+      JSON.stringify(co.sample_titles ?? []),
+      co.source, co.source, now(), co.id);
+    return false;
+  }
+
+  d.prepare(`
+    INSERT INTO companies (id, name, source, location, website, siren, naf, size,
+      description, evidence, job_count, best_job_score, sample_titles, status, first_seen, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'new',?,?)`).run(
+    co.id, co.name, co.source, co.location ?? null, co.website ?? null, co.siren ?? null,
+    co.naf ?? null, co.size ?? null, co.description ?? null, co.evidence ?? null,
+    co.job_count ?? 0, co.best_job_score ?? null, JSON.stringify(co.sample_titles ?? []),
+    now(), now());
+  return true;
+}
+
+/** Best-evidence companies first: proven hirers before speculative ones. */
+export function pendingCompanyScoring(limit = 100) {
+  return getDb().prepare(`
+    SELECT * FROM companies
+    WHERE score IS NULL AND status = 'new'
+    ORDER BY COALESCE(best_job_score, 0) DESC, job_count DESC, first_seen DESC
+    LIMIT ?`).all(limit).map(hydrateCompany);
+}
+
+export function saveCompanyScore(id, s) {
+  getDb().prepare(`
+    UPDATE companies SET score=?, verdict=?, fit_summary=?, pros=?, cons=?, pitch=?,
+      approach=?, scored_at=?, scored_by=?, scored_profile=?, status=?, updated_at=?
+    WHERE id=?`).run(
+    s.score, s.verdict ?? null, s.fit_summary ?? null,
+    JSON.stringify(s.pros ?? []), JSON.stringify(s.cons ?? []),
+    s.pitch ?? null, s.approach ?? null, now(), s.scored_by ?? null,
+    profileFingerprint, s.status, now(), id);
+}
+
+export function listCompanies({ status, minScore, source, search, limit = 100, offset = 0, order = 'score' } = {}) {
+  const where = [];
+  const args = [];
+
+  if (!status) where.push("status NOT IN ('rejected','archived')");
+  else if (status !== 'all') { where.push('status = ?'); args.push(status); }
+
+  if (minScore != null) { where.push('score >= ?'); args.push(minScore); }
+  if (source) { where.push('source LIKE ?'); args.push('%' + source + '%'); }
+  if (search) {
+    where.push('(name LIKE ? OR description LIKE ? OR sample_titles LIKE ?)');
+    const q = '%' + search + '%';
+    args.push(q, q, q);
+  }
+
+  const orderSql = {
+    score: 'score DESC NULLS LAST, job_count DESC',
+    jobs: 'job_count DESC, score DESC NULLS LAST',
+    name: 'name COLLATE NOCASE ASC',
+  }[order] ?? 'score DESC NULLS LAST, job_count DESC';
+
+  const sql = 'SELECT * FROM companies ' + (where.length ? 'WHERE ' + where.join(' AND ') : '') +
+              ' ORDER BY ' + orderSql + ' LIMIT ? OFFSET ?';
+  return getDb().prepare(sql).all(...args, limit, offset).map(hydrateCompany);
+}
+
+export function getCompany(id) {
+  const r = getDb().prepare('SELECT * FROM companies WHERE id=?').get(id);
+  return r ? hydrateCompany(r) : null;
+}
+
+export function setCompanyStatus(id, status, notes) {
+  const d = getDb();
+  if (notes === undefined) d.prepare('UPDATE companies SET status=?, updated_at=? WHERE id=?').run(status, now(), id);
+  else d.prepare('UPDATE companies SET status=?, notes=?, updated_at=? WHERE id=?').run(status, notes, now(), id);
+}
+
+export function companyStats() {
+  const d = getDb();
+  const one = (sql, ...a) => d.prepare(sql).get(...a).n;
+  return {
+    total: one('SELECT COUNT(*) n FROM companies'),
+    scored: one('SELECT COUNT(*) n FROM companies WHERE score IS NOT NULL'),
+    unscored: one("SELECT COUNT(*) n FROM companies WHERE score IS NULL AND status='new'"),
+    shortlisted: one("SELECT COUNT(*) n FROM companies WHERE status='shortlisted'"),
+    contacted: one("SELECT COUNT(*) n FROM companies WHERE status='contacted'"),
+    strong: one('SELECT COUNT(*) n FROM companies WHERE score >= 70'),
+  };
+}
+
+function hydrateCompany(row) {
+  const parse = (v, f) => { try { return v ? JSON.parse(v) : f; } catch { return f; } };
+  return {
+    ...row,
+    pros: parse(row.pros, []),
+    cons: parse(row.cons, []),
+    sample_titles: parse(row.sample_titles, []),
   };
 }

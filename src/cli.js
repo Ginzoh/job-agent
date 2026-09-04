@@ -7,6 +7,8 @@ import { listJobs, stats, setStatus, getJob, lastRuns, allJobs, updatePrefilter,
 import { prefilter } from './core/prefilter.js';
 import { getBackend } from './llm/index.js';
 import { ALL_SOURCES } from './sources/index.js';
+import { discoverCompanies, scoreCompanies } from './core/companies.js';
+import { companyStats, listCompanies } from './lib/db.js';
 import { testCredentials as testFranceTravail } from './sources/francetravail.js';
 import { env, profile, filters, hasAdzuna, hasFranceTravail } from './config.js';
 import { log, c, scoreColor } from './lib/log.js';
@@ -20,6 +22,8 @@ const COMMANDS = {
   fetch: cmdFetch,
   score: cmdScore,
   refilter: cmdRefilter,
+  companies: cmdCompanies,
+  'companies:score': cmdCompaniesScore,
   list: cmdList,
   show: cmdShow,
   mark: cmdMark,
@@ -133,6 +137,48 @@ async function cmdRefilter() {
 
   const s = stats();
   if (s.unscored) log.plain(`  ${c.cyan(`${s.unscored} now awaiting scoring — run \`yarn score\``)}`);
+}
+
+/**
+ * Find companies worth approaching speculatively. Cheap: the job-history angle
+ * is a query against data already collected, and the register is a free API.
+ */
+async function cmdCompanies() {
+  log.step('Discovering companies');
+  const r = await discoverCompanies();
+
+  const added = Object.values(r).reduce((n, x) => n + (x?.added ?? 0), 0);
+  const s = companyStats();
+  log.ok(`${added} new, ${s.total} tracked in total`);
+  if (s.unscored) {
+    log.plain(`  ${c.cyan(`${s.unscored} awaiting judgement — run \`yarn companies:score\``)}`);
+  }
+}
+
+async function cmdCompaniesScore() {
+  log.step('Judging companies');
+  const r = await scoreCompanies({ limit: flags.limit ? Number(flags.limit) : 60 });
+  log.ok(`judged ${r.scored}, ${c.green(String(r.strong))} worth approaching${r.cost ? c.grey(` (~${r.cost.toFixed(3)})`) : ''}`);
+
+  const s = companyStats();
+  if (s.unscored) {
+    log.plain(`\n  ${c.yellow(String(s.unscored))} still unjudged ${c.grey('— run it again; each pass takes the next batch')}`);
+  } else {
+    log.plain(`\n  ${c.green('every company judged')} ${c.grey(`(${s.strong} worth approaching)`)}`);
+  }
+
+  const top = listCompanies({ minScore: 70, limit: 6 });
+  if (top.length) {
+    log.step('Best speculative targets');
+    for (const co of top) {
+      log.plain('');
+      log.plain(`  ${scoreColor(co.score)}  ${c.bold(truncate(co.name, 60))}`);
+      log.plain(`       ${c.grey([co.location, co.size, co.job_count ? `${co.job_count} past postings` : null].filter(Boolean).join(' · '))}`);
+      if (co.fit_summary) log.plain(`       ${truncate(co.fit_summary, 96)}`);
+      if (co.approach) log.plain(`       ${c.cyan('Angle:')} ${truncate(co.approach, 90)}`);
+    }
+    log.plain('');
+  }
 }
 
 async function cmdList() {
@@ -330,6 +376,8 @@ ${c.bold('Usage:')} node src/cli.js <command> [options]
   ${c.cyan('digest')}    write a Markdown briefing to out/  ${c.grey('[--min 60] [--days 14]')}
   ${c.cyan('fetch')}     fetch only, no scoring
   ${c.cyan('score')}     score whatever is pending  ${c.grey('[--limit 50] [--rescore]')}
+  ${c.cyan('companies')}       find companies worth writing to with no vacancy advertised
+  ${c.cyan('companies:score')} judge those companies  ${c.grey('[--limit 60]')}
   ${c.cyan('refilter')}  re-apply filters.json to everything already stored  ${c.grey('← after editing filters')}
 
 ${c.grey('  After editing config/profile.json:  node src/cli.js score --rescore')}

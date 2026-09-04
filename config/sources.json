@@ -137,7 +137,7 @@
       "departments": []
     },
     "websearch": {
-      "enabled": false,
+      "enabled": true,
       "needs_key": false,
       "_comment": "Finds postings by searching the web with the claude CLI, reaching sites that publish no API or feed at all. COSTS REAL MONEY: about $0.55 per run against roughly $0.05 for every other source combined, because each run makes ~9 web searches. Off by default for that reason; set enabled:true to use it, and min_hours_between_runs stops a twice-daily schedule paying twice. The model only DISCOVERS urls — every stored field is then read from the live page, and anything that fails to resolve or is not recognisably the advertised posting is dropped, so nothing invented reaches the database. Measured on a real run: 13 candidates in, 5 kept. LinkedIn pages DO fetch while the posting is live (2 Luxembourg jobs came through with full descriptions); what fails is expired listings, which redirect to a generic page. Indeed returns 401 and Welcome to the Jungle 403, so those are always discarded. The steady win is boards with no feed, such as HelloWork.",
       "model": "sonnet",
@@ -196,5 +196,34 @@
       "sorare",
       "ankorstore"
     ]
+  },
+  "companies": {
+    "_comment": "Discovery for the speculative-application page: companies worth writing to without them having advertised. Two angles, deliberately different in strength. job_history mines your own jobs table for employers who already advertised roles matching your stack — the strongest evidence there is, and free. registry queries the French business register (recherche-entreprises.api.gouv.fr, no key) for software companies by activity code and department, which is the only practical way to enumerate employers in commuting range; it knows nothing about what they build, so those entries carry weaker evidence and are scored accordingly.",
+    "job_history": {
+      "enabled": true,
+      "min_jobs": 1,
+      "min_best_score": 55,
+      "limit": 400,
+      "_note": "min_best_score filters to companies whose postings actually scored well, not merely ones that passed the keyword filter."
+    },
+    "registry": {
+      "enabled": true,
+      "_departments_note": "67 Bas-Rhin, 68 Haut-Rhin, 57 Moselle, 54 Meurthe-et-Moselle — Strasbourg and the rest of Grand Est.",
+      "departments": [
+        "67",
+        "68",
+        "57",
+        "54"
+      ],
+      "_naf_note": "62.01Z programming is the core one; the rest widen to consultancies, hosting and software publishers.",
+      "naf_codes": [
+        "62.01Z",
+        "62.02A",
+        "58.29C",
+        "63.11Z"
+      ],
+      "min_employees": 3,
+      "max_per_code": 25
+    }
   }
 }
