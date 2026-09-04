@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -66,15 +66,13 @@ export async function htmlToPdf(html, { timeout = 30000 } = {}) {
       fileUrl(htmlPath),
     ], timeout);
 
-    if (!existsSync(pdfPath)) {
-      log.warn('browser exited without producing a PDF');
-      return null;
-    }
-
-    const bytes = readFileSync(pdfPath);
-    // A truncated or empty render is worse than an honest failure.
-    if (bytes.length < 1000 || bytes.subarray(0, 4).toString('ascii') !== '%PDF') {
-      log.warn('rendered file was not a valid PDF');
+    // Chrome and Edge exit BEFORE the PDF has finished landing on disk — the
+    // process closes with status 0 and the file appears a moment later. Checking
+    // once on close is a race, and it is one this code lost as soon as a browser
+    // was already running and startup got faster.
+    const bytes = await waitForPdf(pdfPath);
+    if (!bytes) {
+      log.warn('browser exited without producing a usable PDF');
       return null;
     }
     return bytes;
@@ -175,6 +173,37 @@ export async function renderCvPdfFitted(cv, renderHtml, { maxPages = 1, scales =
 
   log.warn(`CV still ${last.pages} pages after trimming and scaling — unusually long content`);
   return last;
+}
+
+/**
+ * Wait for a rendered PDF to appear and finish being written.
+ *
+ * Two things have to be true, not one: the file must exist, and its size must
+ * stop changing. A large document is written incrementally, so reading the
+ * moment it appears can yield a truncated file that still starts with %PDF and
+ * would be served to the user as a broken download.
+ */
+async function waitForPdf(pdfPath, { timeout = 15000, settleMs = 150 } = {}) {
+  const deadline = Date.now() + timeout;
+  let lastSize = -1;
+
+  while (Date.now() < deadline) {
+    if (existsSync(pdfPath)) {
+      const size = statSync(pdfPath).size;
+      if (size > 0 && size === lastSize) {
+        const bytes = readFileSync(pdfPath);
+        // A truncated or empty render is worse than an honest failure.
+        if (bytes.length < 1000 || bytes.subarray(0, 4).toString('ascii') !== '%PDF') {
+          log.warn('rendered file was not a valid PDF');
+          return null;
+        }
+        return bytes;
+      }
+      lastSize = size;
+    }
+    await new Promise((r) => setTimeout(r, settleMs));
+  }
+  return null;
 }
 
 const fileUrl = (p) => 'file:///' + p.replace(/\\/g, '/').replace(/^\//, '');
