@@ -121,6 +121,29 @@ Output ONLY a JSON object, no prose and no markdown fences:
 "changes" is important and must be complete: list every substantive edit — rewritten summary, reordered or reworded bullets, skills added or dropped, a changed job title. The reader uses this to review the CV at a glance instead of re-reading it line by line. Keep "before" and "after" short enough to scan (one line each). Do not list trivial punctuation changes.`,
   },
 
+  ask: {
+    model: () => env.claudeModelWrite,
+    system: `You answer a specific question on behalf of one candidate, for one specific job application.
+
+These are the questions application forms and recruiters ask — "why us?", "describe a technical challenge you solved", "what are your salary expectations?", "how soon can you start?". The answer will be pasted into a form or an email largely as written, so produce the finished answer and nothing else.
+
+${NEVER_INVENT}
+
+How to answer:
+- Write in the FIRST PERSON, as the candidate. Not "the candidate has..." but "I built...".
+- Answer the question that was actually asked. Do not drift into a general pitch.
+- Ground it in something real and specific from the reference documents — a project, a technology, a decision. A concrete detail is worth more than three sentences of enthusiasm.
+- Tie it to THIS posting where the question invites it, using what the posting actually says rather than flattery about the company.
+- Lead with the answer. No "That's a great question", no restating the question back, no throat-clearing.
+- If the honest answer is not impressive, give it anyway and make it useful: what they have instead, what they would do, how quickly they could pick it up. An answer that survives a follow-up beats one that does not.
+- If the question asks about something the candidate genuinely lacks, say so plainly in one clause, then pivot to the nearest true and relevant thing. Never manufacture the experience.
+- For salary or rate questions, use the figures in the profile. State a range, not a single number, and do not invent expectations that are not there.
+- Match the register of a professional application: plain, direct, no marketing language and no clichés.
+- Default to roughly 120-180 words unless a length is specified. Application forms are read quickly.
+
+Output ONLY the answer text, ready to paste. No heading, no preamble, no sign-off, no commentary about the answer.`,
+  },
+
   cover: {
     model: () => env.claudeModelWrite,
     system: `You are an expert cover-letter writer for software engineering roles.
@@ -223,12 +246,27 @@ function buildUserPrompt(kind, job, docs, options) {
     if (options.tone) req.push(`Tone: ${TONES[options.tone] ?? options.tone}.`);
   }
 
+  if (kind === 'ask' && options.maxChars) {
+    req.push(`Hard limit: at most ${options.maxChars} characters. Application forms enforce these, so being comfortably under is better than being at the limit.`);
+  }
+
   if (kind === 'cv' && options.maxChars) {
     req.push(`Keep the CV body under roughly ${options.maxChars} characters.`);
   }
 
   if (options.notes?.trim()) {
     req.push(`Additional instructions from the candidate — follow these closely: ${options.notes.trim()}`);
+  }
+
+  if (kind === 'ask') {
+    parts.push('# THE QUESTION TO ANSWER');
+    parts.push('');
+    // Fenced so a question containing instruction-like wording is read as the
+    // thing being asked about, not as a directive to follow.
+    parts.push('"""');
+    parts.push(String(options.question ?? '').trim());
+    parts.push('"""');
+    parts.push('');
   }
 
   parts.push('# YOUR TASK');
@@ -247,6 +285,7 @@ const TASKS = {
   advice: 'Review this CV against this posting and tell the candidate exactly what to change.',
   cv: 'Produce a tailored version of this CV targeting this specific posting.',
   cover: 'Write a cover letter for this specific posting, in the candidate\'s own voice.',
+  ask: 'Answer the question below, for this specific application.',
 };
 
 // Plain-English description of what each trim level removed, so the change
@@ -277,6 +316,10 @@ export const KINDS = Object.keys(PROMPTS);
 export async function tailor(job, kind, options = {}) {
   const spec = PROMPTS[kind];
   if (!spec) throw new Error(`unknown document type "${kind}" (expected one of: ${KINDS.join(', ')})`);
+
+  if (kind === 'ask' && !String(options.question ?? '').trim()) {
+    throw new Error('ask what? Type a question first.');
+  }
 
   const backend = getBackend();
   if (!backend) throw new Error('LLM_BACKEND is "none" — set it to claude or ollama to generate documents');

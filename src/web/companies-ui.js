@@ -1,6 +1,18 @@
 import { page } from './shell.js';
 
 const STYLES = `
+  /* --- ask a question --- */
+  .ask{display:none;margin-top:9px;background:var(--panel2);padding:11px 12px;border-radius:8px}
+  .ask.show{display:block}
+  .ask textarea{width:100%;min-height:58px;resize:vertical;font:13px/1.5 inherit;
+                background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
+  .ask .presets{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+  .ask .presets button{font-size:11.5px;padding:3px 9px;border-radius:20px;color:var(--dim);background:var(--panel)}
+  .ask .presets button:hover{color:var(--accent);border-color:var(--accent)}
+  .ask .go{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .ask .go label{font-size:12px;color:var(--dim);display:flex;gap:5px;align-items:center}
+  .ask .go input[type=number]{width:84px}
+
   header.filters{position:sticky;top:49px;z-index:20;background:rgba(13,17,23,.94);backdrop-filter:blur(8px);
                  border-bottom:1px solid var(--line);padding:12px 20px}
   main{max-width:1180px;margin:0 auto;padding:18px 20px 60px}
@@ -91,7 +103,32 @@ let openId = null;
 let modalText = '';
 let openDocId = null;
 
-const KIND_LABEL = { advice: 'CV advice', cv: 'Tailored CV', cover: 'Cover letter' };
+const KIND_LABEL = { advice: 'CV advice', cv: 'Tailored CV', cover: 'Cover letter', ask: 'Answer' };
+const ASK_PRESETS = [
+  "Pourquoi souhaitez-vous rejoindre notre entreprise ?",
+  "Qu'est-ce qui vous intéresse dans ce poste ?",
+  "Décrivez un projet technique dont vous êtes fier",
+  "Quelles sont vos prétentions salariales ?",
+  "Quelle est votre disponibilité ?",
+  "Why do you want to work here?",
+  "Describe a technical challenge you solved",
+  "What are your salary expectations?",
+];
+
+function askPanelHtml() {
+  return '<div class="ask">' +
+    '<div class="presets">' +
+      ASK_PRESETS.map((q, i) => '<button data-preset="' + i + '">' + esc(q) + '</button>').join('') +
+    '</div>' +
+    '<textarea data-askq placeholder="Paste the question from the application form, or type your own…"></textarea>' +
+    '<div class="go">' +
+      '<button class="primary" data-asksend>Answer it</button>' +
+      '<label>Max characters <input type="number" data-askmax placeholder="1000" min="100" step="100"></label>' +
+      '<span class="meta">Uses your profile and CV — the same rules that stop the CV inventing things.</span>' +
+    '</div>' +
+  '</div>';
+}
+
 
 async function load() {
   const p = new URLSearchParams();
@@ -175,6 +212,7 @@ function detailHtml(co) {
       '<button data-gen="advice" title="What to change in your CV before writing to them">📝 CV advice</button>' +
       '<button data-gen="cv" title="Tailored CV for a speculative approach">📄 Tailor my CV</button>' +
       '<button data-gen="cover" title="Speculative cover letter">✉️ Cover letter</button>' +
+      '<button data-ask title="Answer a question from the application form">❓ Ask a question</button>' +
       '<button data-optstoggle>⚙︎ Options</button>' +
       '<span id="docs-' + co.id + '" class="meta"></span>' +
     '</div>' +
@@ -183,7 +221,8 @@ function detailHtml(co) {
       '<label>Max characters <input type="number" data-opt="maxChars" placeholder="2200" min="300" step="100"></label>' +
       '<label>Tone <select data-opt="tone"><option value="professional">Professional</option><option value="warm">Warm</option><option value="direct">Direct</option><option value="enthusiastic">Enthusiastic</option></select></label>' +
       '<input type="text" data-opt="notes" placeholder="Anything else? e.g. \\'mention I can start immediately\\'">' +
-    '</div>';
+    '</div>' +
+    askPanelHtml();
 }
 
 $('#list').addEventListener('click', async (e) => {
@@ -198,6 +237,26 @@ $('#list').addEventListener('click', async (e) => {
     return;
   }
   if (e.target.hasAttribute('data-optstoggle')) { card.querySelector('.opts')?.classList.toggle('show'); return; }
+
+  if (e.target.hasAttribute('data-ask')) {
+    const panel = card.querySelector('.ask');
+    panel?.classList.toggle('show');
+    if (panel?.classList.contains('show')) panel.querySelector('[data-askq]')?.focus();
+    return;
+  }
+
+  if (e.target.dataset.preset !== undefined) {
+    const box = card.querySelector('[data-askq]');
+    if (box) { box.value = ASK_PRESETS[Number(e.target.dataset.preset)]; box.focus(); }
+    return;
+  }
+
+  if (e.target.hasAttribute('data-asksend')) {
+    const question = card.querySelector('[data-askq]')?.value.trim();
+    if (!question) return toast('Type a question first');
+    const maxChars = Number(card.querySelector('[data-askmax]')?.value) || undefined;
+    return generate(card, id, 'ask', { question, maxChars });
+  }
 
   const kind = e.target.dataset.gen;
   if (kind) return generate(card, id, kind);
@@ -220,13 +279,16 @@ function readOptions(card) {
   return o;
 }
 
-async function generate(card, id, kind) {
+async function generate(card, id, kind, extras = {}) {
   const co = companies.find((x) => x.id === id);
-  openModal(KIND_LABEL[kind] + ' — ' + (co ? co.name : ''), null);
+  const heading = kind === 'ask'
+    ? 'Answer — ' + (extras.question || '').slice(0, 70)
+    : KIND_LABEL[kind] + ' — ' + (co ? co.name : '');
+  openModal(heading, null);
   try {
     const r = await fetch('/api/tailor', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ companyId: id, kind, options: readOptions(card) }),
+      body: JSON.stringify({ companyId: id, kind, options: { ...readOptions(card), ...extras } }),
     });
     const data = await r.json();
     if (!r.ok) return openModal(KIND_LABEL[kind] + " — couldn't generate", data.error || 'unknown error');
@@ -237,7 +299,7 @@ async function generate(card, id, kind) {
     ].filter(Boolean).join(' · ');
     const meta = [data.model + ' · $' + (data.cost||0).toFixed(3), src].filter(Boolean).join(' · ');
     if (kind === 'cv' && data.structured) openCv(data.id, data.structured, meta);
-    else openModal(KIND_LABEL[kind] + ' — ' + (co ? co.name : ''), data.content, meta);
+    else openModal(heading, data.content, meta);
     showDocs(id);
   } catch (err) { openModal(KIND_LABEL[kind] + ' — failed', String(err)); }
 }
@@ -248,8 +310,18 @@ async function showDocs(id) {
   const { documents } = await (await fetch('/api/documents?jobId=' + encodeURIComponent('company:' + id))).json();
   if (!documents?.length) { slot.innerHTML = ''; return; }
   slot.innerHTML = '<span class="saved"><span class="lbl">saved:</span>' + documents.map((d) =>
-    '<span class="chip" data-chip="' + d.id + '"><a href="#" data-doc="' + d.id + '">' + (KIND_LABEL[d.kind]||d.kind) + '</a>' +
+    '<span class="chip" data-chip="' + d.id + '"><a href="#" data-doc="' + d.id + '" title="' + esc(docTitle(d)) + '">' + esc(docLabel(d)) + '</a>' +
     '<time>' + shortWhen(d.at) + '</time><button class="del" data-del="' + d.id + '" title="Delete">×</button></span>').join('') + '</span>';
+}
+
+function docLabel(d) {
+  if (d.kind !== 'ask') return KIND_LABEL[d.kind] || d.kind;
+  const q = askQuestionOf(d);
+  return q ? '❓ ' + (q.length > 34 ? q.slice(0, 33) + '…' : q) : 'Answer';
+}
+function docTitle(d) { return d.kind === 'ask' ? (askQuestionOf(d) || 'Answer') : (KIND_LABEL[d.kind] || d.kind); }
+function askQuestionOf(d) {
+  try { return JSON.parse(d.options || '{}').question || ''; } catch { return ''; }
 }
 
 function shortWhen(iso) {

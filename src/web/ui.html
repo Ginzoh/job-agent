@@ -143,6 +143,18 @@
   .topnav nav a:hover{color:var(--fg)}
   .topnav nav a.on{color:var(--fg);border-bottom-color:var(--accent)}
   header{top:49px !important}
+
+  /* --- ask a question --- */
+  .ask{display:none;margin-top:9px;background:var(--panel2);padding:11px 12px;border-radius:8px}
+  .ask.show{display:block}
+  .ask textarea{width:100%;min-height:58px;resize:vertical;font:13px/1.5 inherit;
+                background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
+  .ask .presets{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+  .ask .presets button{font-size:11.5px;padding:3px 9px;border-radius:20px;color:var(--dim);background:var(--panel)}
+  .ask .presets button:hover{color:var(--accent);border-color:var(--accent)}
+  .ask .go{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .ask .go label{font-size:12px;color:var(--dim);display:flex;gap:5px;align-items:center}
+  .ask .go input[type=number]{width:84px}
 </style>
 </head>
 <body>
@@ -239,6 +251,31 @@
 
 <script>
 const $ = (s) => document.querySelector(s);
+const ASK_PRESETS = [
+  "Pourquoi souhaitez-vous rejoindre notre entreprise ?",
+  "Qu'est-ce qui vous intéresse dans ce poste ?",
+  "Décrivez un projet technique dont vous êtes fier",
+  "Quelles sont vos prétentions salariales ?",
+  "Quelle est votre disponibilité ?",
+  "Why do you want to work here?",
+  "Describe a technical challenge you solved",
+  "What are your salary expectations?",
+];
+
+function askPanelHtml() {
+  return '<div class="ask">' +
+    '<div class="presets">' +
+      ASK_PRESETS.map((q, i) => '<button data-preset="' + i + '">' + esc(q) + '</button>').join('') +
+    '</div>' +
+    '<textarea data-askq placeholder="Paste the question from the application form, or type your own…"></textarea>' +
+    '<div class="go">' +
+      '<button class="primary" data-asksend>Answer it</button>' +
+      '<label>Max characters <input type="number" data-askmax placeholder="1000" min="100" step="100"></label>' +
+      '<span class="meta">Uses your profile and CV — the same rules that stop the CV inventing things.</span>' +
+    '</div>' +
+  '</div>';
+}
+
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 let jobs = [];
 let openId = null;
@@ -348,6 +385,7 @@ function detailHtml(j) {
       <button data-gen="advice" title="What to change in your CV for this specific role">📝 CV advice</button>
       <button data-gen="cv" title="Generate a tailored version of your CV">📄 Tailor my CV</button>
       <button data-gen="cover" title="Write a cover letter for this role">✉️ Cover letter</button>
+      <button data-ask title="Answer a question from the application form">❓ Ask a question</button>
       <button data-optstoggle title="Language, length, tone">⚙︎ Options</button>
       <span id="docs-${j.id}" class="meta"></span>
     </div>
@@ -372,7 +410,8 @@ function detailHtml(j) {
         </select>
       </label>
       <input type="text" data-opt="notes" placeholder="Anything else? e.g. 'lead with React Native', 'mention I can start immediately'">
-    </div>`;
+    </div>
+    ${askPanelHtml()}`;
 }
 
 $('#list').addEventListener('click', async (e) => {
@@ -397,6 +436,26 @@ $('#list').addEventListener('click', async (e) => {
     return;
   }
 
+  if (e.target.hasAttribute('data-ask')) {
+    const panel = card.querySelector('.ask');
+    panel?.classList.toggle('show');
+    if (panel?.classList.contains('show')) panel.querySelector('[data-askq]')?.focus();
+    return;
+  }
+
+  if (e.target.dataset.preset !== undefined) {
+    const box = card.querySelector('[data-askq]');
+    if (box) { box.value = ASK_PRESETS[Number(e.target.dataset.preset)]; box.focus(); }
+    return;
+  }
+
+  if (e.target.hasAttribute('data-asksend')) {
+    const question = card.querySelector('[data-askq]')?.value.trim();
+    if (!question) return toast('Type a question first');
+    const maxChars = Number(card.querySelector('[data-askmax]')?.value) || undefined;
+    return generate(card, id, 'ask', { question, maxChars });
+  }
+
   const kind = e.target.dataset.gen;
   if (kind) return generate(card, id, kind);
 
@@ -413,7 +472,7 @@ $('#list').addEventListener('click', async (e) => {
   }
 });
 
-const KIND_LABEL = { advice: 'CV advice', cv: 'Tailored CV', cover: 'Cover letter' };
+const KIND_LABEL = { advice: 'CV advice', cv: 'Tailored CV', cover: 'Cover letter', ask: 'Answer' };
 
 function readOptions(card) {
   const o = {};
@@ -424,15 +483,18 @@ function readOptions(card) {
   return o;
 }
 
-async function generate(card, id, kind) {
+async function generate(card, id, kind, extras = {}) {
   const job = jobs.find((x) => x.id === id);
-  openModal(`${KIND_LABEL[kind]} — ${job ? job.title : ''}`, null);
+  const heading = kind === 'ask'
+    ? `Answer — ${(extras.question || '').slice(0, 70)}`
+    : `${KIND_LABEL[kind]} — ${job ? job.title : ''}`;
+  openModal(heading, null);
 
   try {
     const r = await fetch('/api/tailor', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ jobId: id, kind, options: readOptions(card) }),
+      body: JSON.stringify({ jobId: id, kind, options: { ...readOptions(card), ...extras } }),
     });
     const data = await r.json();
     if (!r.ok) {
@@ -463,10 +525,21 @@ async function showExistingDocs(id) {
 
   slot.innerHTML = `<span class="saved"><span class="lbl">saved:</span>` + documents.map((d) => `
     <span class="chip" data-chip="${d.id}">
-      <a href="#" data-doc="${d.id}">${KIND_LABEL[d.kind] || esc(d.kind)}</a>
+      <a href="#" data-doc="${d.id}" title="${esc(docTitle(d))}">${esc(docLabel(d))}</a>
       <time datetime="${esc(d.at)}">${shortWhen(d.at)}</time>
       <button class="del" data-del="${d.id}" title="Delete this document">×</button>
     </span>`).join('') + '</span>';
+}
+
+/** An answer is labelled by its question; everything else by its kind. */
+function docLabel(d) {
+  if (d.kind !== 'ask') return KIND_LABEL[d.kind] || d.kind;
+  const q = askQuestionOf(d);
+  return q ? '❓ ' + (q.length > 34 ? q.slice(0, 33) + '…' : q) : 'Answer';
+}
+function docTitle(d) { return d.kind === 'ask' ? (askQuestionOf(d) || 'Answer') : (KIND_LABEL[d.kind] || d.kind); }
+function askQuestionOf(d) {
+  try { return JSON.parse(d.options || '{}').question || ''; } catch { return ''; }
 }
 
 /** Time for today, date otherwise — enough to tell several CVs apart. */
