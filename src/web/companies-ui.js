@@ -79,9 +79,9 @@ const STYLES = `
   .sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:100%;max-width:900px;
          max-height:calc(100vh - 48px);display:flex;flex-direction:column;overflow:hidden;
          box-shadow:0 24px 70px rgba(0,0,0,.6)}
-  .sheet header{flex:none;background:var(--panel);border-bottom:1px solid var(--line);padding:13px 18px;
-                display:flex;gap:10px 12px;align-items:center;flex-wrap:wrap}
-  .sheet h3{margin:0;font-size:15px;flex:1 1 100%;min-width:0;line-height:1.35}
+  .sheet header{position:static;flex:none;background:var(--panel);border-bottom:1px solid var(--line);padding:11px 18px;
+                display:flex;gap:8px 12px;align-items:center;flex-wrap:wrap}
+  .sheet h3{margin:0;font-size:15px;flex:1 1 260px;min-width:0;line-height:1.35}
   .sheet header .meta{flex:1 1 auto;min-width:0;font-size:11.5px;overflow-wrap:anywhere}
   .sheet header button{flex:none}
   .sheet .body{padding:18px 22px;overflow:auto;flex:1 1 auto;min-height:0}
@@ -383,6 +383,7 @@ function openModal(title, content, meta) {
   const count = content ? content.length.toLocaleString() + ' chars' : '';
   $('#modalMeta').textContent = [meta, count].filter(Boolean).join(' · ');
   modalText = content || '';
+  $('#modalBody').scrollTop = 0;
   $('#modalBody').innerHTML = content === null
     ? '<div class="working"><span class="spin"></span>Writing… this takes 30-90 seconds.</div>'
     : '<div class="doc">' + esc(content) + '</div>';
@@ -405,6 +406,7 @@ function openCv(docId, cv, meta) {
   const gaps = (cv.gaps||[]).length
     ? '<div class="gaps"><h4>Asked for, but you don\\'t have it</h4><ul>' + cv.gaps.map((g)=>'<li>'+esc(g)+'</li>').join('') + '</ul></div>' : '';
 
+  $('#modalBody').scrollTop = 0;
   $('#modalBody').innerHTML =
     '<div class="tabs">' +
       '<button data-tab="changes" class="on">What changed (' + (cv.changes||[]).length + ')</button>' +

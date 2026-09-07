@@ -12,7 +12,7 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
-  header{position:sticky;top:0;z-index:10;background:rgba(13,17,23,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 20px}
+  body > header{position:sticky;top:0;z-index:10;background:rgba(13,17,23,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 20px}
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   h1{font-size:16px;margin:0;font-weight:650;letter-spacing:-.2px}
   h1 span{color:var(--dim);font-weight:400}
@@ -85,9 +85,9 @@
   .sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:100%;max-width:900px;
          max-height:calc(100vh - 48px);display:flex;flex-direction:column;overflow:hidden;
          box-shadow:0 24px 70px rgba(0,0,0,.6)}
-  .sheet header{flex:none;background:var(--panel);border-bottom:1px solid var(--line);padding:13px 18px;
-                display:flex;gap:10px 12px;align-items:center;flex-wrap:wrap}
-  .sheet h3{margin:0;font-size:15px;flex:1 1 100%;min-width:0;line-height:1.35}
+  .sheet header{position:static;flex:none;background:var(--panel);border-bottom:1px solid var(--line);padding:11px 18px;
+                display:flex;gap:8px 12px;align-items:center;flex-wrap:wrap}
+  .sheet h3{margin:0;font-size:15px;flex:1 1 260px;min-width:0;line-height:1.35}
   .sheet header .meta{flex:1 1 auto;min-width:0;font-size:11.5px;overflow-wrap:anywhere}
   .sheet header button{flex:none}
   .sheet .body{padding:18px 22px;overflow:auto;flex:1 1 auto;min-height:0}
@@ -147,7 +147,7 @@
   .topnav nav a{color:var(--dim);text-decoration:none;padding:13px 13px 11px;border-bottom:2px solid transparent;font-size:13.5px;white-space:nowrap;transition:.12s}
   .topnav nav a:hover{color:var(--fg)}
   .topnav nav a.on{color:var(--fg);border-bottom-color:var(--accent)}
-  header{top:49px !important}
+  body > header{top:49px}
 
   /* --- ask a question --- */
   .ask{display:none;margin-top:9px;background:var(--panel2);padding:11px 12px;border-radius:8px}
@@ -652,6 +652,7 @@ function openCv(docId, cv, meta) {
     : '';
   if (fit) $('#modalMeta').innerHTML = `${esc(meta || '')} · ${fit}`;
 
+  $('#modalBody').scrollTop = 0;
   $('#modalBody').innerHTML = `
     <div class="tabs">
       <button data-tab="changes" class="on">What changed (${(cv.changes || []).length})</button>
@@ -693,6 +694,7 @@ function openModal(title, content, meta) {
   const count = content ? `${content.length.toLocaleString()} chars` : '';
   $('#modalMeta').textContent = [meta, count].filter(Boolean).join(' · ');
   modalText = content || '';
+  $('#modalBody').scrollTop = 0;
   $('#modalBody').innerHTML = content === null
     ? `<div class="working"><span class="spin"></span>Writing with ${window.__writeModel || 'Claude'}… this takes 30-90 seconds.</div>`
     : `<div class="doc">${esc(content)}</div>`;
