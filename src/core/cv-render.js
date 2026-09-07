@@ -19,7 +19,11 @@ const list = (items, cls = '') =>
  *                  proportionally so a slightly-too-long CV still fits one page.
  *                  Defaults to whatever the auto-fit pass stored on the CV.
  */
-export function renderCvHtml(cv = {}, { scale = cv.scale ?? 1 } = {}) {
+export function renderCvHtml(cv = {}, { scale, ats = false } = {}) {
+  // The two layouts need different scales: one column is taller than two, so a
+  // factor that fits the designed CV on a page will overflow the ATS one.
+  if (ats) return renderCvAtsHtml(cv, { scale: scale ?? cv.atsScale ?? 1 });
+  scale = scale ?? cv.scale ?? 1;
   const c = cv.contact ?? {};
 
   const contactLine = [
@@ -149,6 +153,111 @@ export function renderCvHtml(cv = {}, { scale = cv.scale ?? 1 } = {}) {
       ${section(cv.labels?.interests || 'Interests', list(cv.interests))}
     </div>
   </main>
+</body>
+</html>`;
+}
+
+
+/**
+ * A CV laid out for machines rather than for people.
+ *
+ * The designed two-column CV does not survive automated parsing. Measured with
+ * a real PDF text extractor, the same document comes out two ways and both are
+ * wrong: a position-aware parser puts an experience bullet and a skill on the
+ * same line, and a naive one emits the bullets AFTER every section heading, so
+ * the Idemoov bullets land under "Langues" with nothing tying them to the role.
+ *
+ * The rules that fix it are unglamorous and all about reading order:
+ *   - one column, so DOM order, visual order and extraction order are the same
+ *   - no flex or grid side-by-side anywhere, no tables, no text boxes
+ *   - every bullet and every contact detail on its own block-level line
+ *   - conventional uppercase section headings a parser can recognise
+ *   - black on white with a common font, no background bands or icons
+ *
+ * It is plainer to look at. That is the trade: this is the file to upload into
+ * an application form, and the designed one is what a human reads.
+ */
+export function renderCvAtsHtml(cv = {}, { scale = 1 } = {}) {
+  const c = cv.contact ?? {};
+  const fr = cv.language === 'fr';
+
+  const contactLines = [c.location, c.email, c.phone, stripScheme(c.github), stripScheme(c.linkedin)]
+    .filter(Boolean)
+    .map((v) => `<p class="contact">${esc(v)}</p>`).join('');
+
+  const section = (title, inner) =>
+    inner && inner.trim() ? `<h2>${esc(String(title).toUpperCase())}</h2>${inner}` : '';
+
+  const bullets = (items) =>
+    (items ?? []).filter(Boolean).map((i) => `<p class="b">• ${esc(i)}</p>`).join('');
+
+  const experience = (cv.experience ?? []).map((e) => `
+    <p class="role">${esc(e.role)}</p>
+    <p class="org">${esc([e.company, e.location].filter(Boolean).join(', '))}${period(e) ? ` | ${esc(period(e))}` : ''}</p>
+    ${bullets(e.bullets)}`).join('');
+
+  const education = (cv.education ?? []).map((e) => `
+    <p class="role">${esc(e.degree)}</p>
+    <p class="org">${esc(e.school)}${e.period ? ` | ${esc(e.period)}` : ''}</p>
+    ${bullets(e.bullets)}`).join('');
+
+  const projects = (cv.projects ?? []).map((p) => `
+    <p class="role">${esc(p.name)}${p.period ? ` | ${esc(p.period)}` : ''}</p>
+    ${p.context ? `<p class="b">${esc(p.context)}</p>` : ''}
+    ${(p.tech ?? []).length ? `<p class="b">${esc(fr ? 'Technologies' : 'Technologies')} : ${esc(p.tech.join(', '))}</p>` : ''}
+    ${bullets(p.achievements)}`).join('');
+
+  // One line per group, comma separated. A parser reads "React, Next.js" as two
+  // skills; a bulleted column of single words often becomes one run-on string.
+  const skills = (cv.skills ?? []).map((g) =>
+    `<p class="b">${esc(g.group)}: ${esc((g.items ?? []).join(', '))}</p>`).join('');
+
+  const languages = (cv.languages ?? []).map((l) =>
+    `<p class="b">${esc(l.lang)}: ${esc(l.level)}</p>`).join('');
+
+  return `<!doctype html>
+<html lang="${esc(fr ? 'fr' : 'en')}">
+<head>
+<meta charset="utf-8">
+<title>${esc(cv.name || 'CV')}${cv.title ? ' — ' + esc(cv.title) : ''}</title>
+<style>
+  @page { size: A4; margin: 14mm 15mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, "Liberation Sans", sans-serif;
+    font-size: calc(10.5pt * ${scale});
+    line-height: 1.34;
+    color: #000; background: #fff;
+    width: 180mm; margin: 0 auto;
+  }
+  h1 { font-size: calc(17pt * ${scale}); font-weight: bold; margin-bottom: 1mm; }
+  .subtitle { font-size: calc(11.5pt * ${scale}); margin-bottom: 2mm; }
+  .contact { font-size: calc(10pt * ${scale}); }
+  .summary { margin: 3mm 0 1mm; }
+  h2 {
+    font-size: calc(11pt * ${scale}); font-weight: bold; text-transform: uppercase;
+    margin: calc(5mm * ${scale}) 0 calc(1.6mm * ${scale});
+    padding-bottom: 0.8mm; border-bottom: 1px solid #000;
+  }
+  .role { font-weight: bold; margin-top: calc(2.6mm * ${scale}); }
+  .org { margin-bottom: 0.8mm; }
+  .b { margin-bottom: 0.6mm; }
+  @media screen { body { padding: 10mm; box-shadow: 0 2px 22px rgba(0,0,0,.16); margin: 18px auto; } }
+</style>
+</head>
+<body>
+  <h1>${esc(cv.name)}</h1>
+  ${cv.title ? `<p class="subtitle">${esc(cv.title)}</p>` : ''}
+  ${contactLines}
+  ${cv.summary ? `<p class="summary">${esc(cv.summary)}</p>` : ''}
+
+  ${section(cv.labels?.experience || (fr ? 'Expérience' : 'Experience'), experience)}
+  ${section(cv.labels?.education || (fr ? 'Formation' : 'Education'), education)}
+  ${section(cv.labels?.projects || (fr ? 'Projets' : 'Projects'), projects)}
+  ${section(cv.labels?.skills || (fr ? 'Compétences techniques' : 'Technical Skills'), skills)}
+  ${section(cv.labels?.personalSkills || (fr ? 'Compétences personnelles' : 'Personal Skills'), bullets(cv.personalSkills))}
+  ${section(cv.labels?.languages || (fr ? 'Langues' : 'Languages'), languages)}
+  ${section(cv.labels?.interests || (fr ? "Centres d'intérêt" : 'Interests'), bullets(cv.interests))}
 </body>
 </html>`;
 }

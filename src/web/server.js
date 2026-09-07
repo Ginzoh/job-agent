@@ -152,15 +152,20 @@ async function handle(req, res) {
       return send(res, 422, { error: 'stored CV is not valid structured data — regenerate it' });
     }
 
-    const html = renderCvHtml(cv);
-    const filename = `CV_${(cv.name || 'cv').replace(/[^\w]+/g, '_')}_${(cv.title || '').replace(/[^\w]+/g, '_').slice(0, 40)}`.replace(/_+$/, '');
+    // ATS by default: this is the file that goes into an application form, and
+    // the designed one is for a human. ?style=designed asks for the other.
+    const ats = url.searchParams.get('style') !== 'designed';
+    const render = (c, o = {}) => renderCvHtml(c, { ...o, ats });
+    const html = render(cv);
+    const storedScale = ats ? cv.atsScale : cv.scale;
+    const filename = `CV_${(cv.name || 'cv').replace(/[^\w]+/g, '_')}_${(cv.title || '').replace(/[^\w]+/g, '_').slice(0, 40)}${ats ? '_ATS' : ''}`.replace(/_+$/, '');
 
     if (format === 'pdf') {
-      // Documents generated before auto-fit existed carry no scale, so fit them
-      // now rather than serving a two-page CV.
-      const bytes = cv.scale
+      // Documents generated before this layout existed carry no scale for it,
+      // so fit them now rather than serving something that overflows.
+      const bytes = storedScale
         ? await htmlToPdf(html)
-        : (await renderCvPdfFitted(cv, renderCvHtml)).bytes;
+        : (await renderCvPdfFitted(cv, render)).bytes;
 
       if (!bytes) {
         return send(res, 503, { error: 'no Chrome or Edge available to render a PDF. Open the printable page and use Ctrl+P → Save as PDF instead.' });

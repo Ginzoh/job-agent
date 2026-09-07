@@ -400,6 +400,16 @@ export async function tailor(job, kind, options = {}) {
           `⚠ Still ${fit.pages} pages after trimming. Regenerate with "make it much shorter" in the notes.`,
         ];
       }
+
+      // Fit the ATS layout too, and store its own scale. Doing it now costs a
+      // few seconds once; doing it on download would cost them every time.
+      const atsFit = await renderCvPdfFitted(
+        structured,
+        (c, o) => renderCvHtml(c, { ...o, ats: true }),
+      );
+      structured.atsScale = atsFit.scale;
+      structured.atsPages = atsFit.pages;
+      structured.atsFitsOnePage = atsFit.fitted;
     }
 
     content = JSON.stringify(structured, null, 2);

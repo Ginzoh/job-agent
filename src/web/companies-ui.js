@@ -1,6 +1,10 @@
 import { page } from './shell.js';
 
 const STYLES = `
+  .atsToggle{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim);
+             background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:5px 10px;cursor:pointer}
+  .atsToggle input{width:auto;margin:0;cursor:pointer}
+
   /* --- ask a question --- */
   .ask{display:none;margin-top:9px;background:var(--panel2);padding:11px 12px;border-radius:8px}
   .ask.show{display:block}
@@ -411,8 +415,9 @@ function openCv(docId, cv, meta) {
     '<div class="tabs">' +
       '<button data-tab="changes" class="on">What changed (' + (cv.changes||[]).length + ')</button>' +
       '<button data-tab="preview">Preview the CV</button>' +
-      '<a href="/cv/' + docId + '/pdf" download><button class="primary">⬇ Download PDF</button></a>' +
-      '<a href="/cv/' + docId + '" target="_blank" rel="noopener"><button>Open printable ↗</button></a>' +
+      '<a href="/cv/' + docId + '/pdf" download id="cvPdf"><button class="primary">⬇ Download PDF</button></a>' +
+      '<a href="/cv/' + docId + '" target="_blank" rel="noopener" id="cvPrint"><button>Open printable ↗</button></a>' +
+      '<label class="atsToggle" title="ATS layout is one column with plain headings, so applicant tracking systems parse it correctly. The designed layout is the two-column version for a human reader."><input type="checkbox" data-atstoggle checked> ATS-safe</label>' +
     '</div>' +
     '<div data-panel="changes">' +
       (changes ? '<table class="chg"><thead><tr><th>Section</th><th>Change</th><th>Why</th></tr></thead><tbody>' + changes + '</tbody></table>'
@@ -427,6 +432,19 @@ $('#modalBody').addEventListener('click', (e) => {
   if (!tab) return;
   for (const b of $('#modalBody').querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === tab);
   for (const p of $('#modalBody').querySelectorAll('[data-panel]')) p.style.display = p.dataset.panel === tab ? '' : 'none';
+});
+
+// The links carry the style, so toggling rewrites them and the preview iframe.
+document.addEventListener('change', (e) => {
+  if (!e.target.matches?.('[data-atstoggle]')) return;
+  const ats = e.target.checked;
+  const q = ats ? '' : '?style=designed';
+  const pdf = document.getElementById('cvPdf');
+  const print = document.getElementById('cvPrint');
+  if (pdf) pdf.href = pdf.href.split('?')[0] + q;
+  if (print) print.href = print.href.split('?')[0] + q;
+  const frame = document.querySelector('.cvframe');
+  if (frame) frame.src = frame.src.split('?')[0] + q;
 });
 $('#modalClose').onclick = () => $('#modal').classList.remove('show');
 $('#modal').onclick = (e) => { if (e.target.id === 'modal') $('#modal').classList.remove('show'); };
