@@ -74,13 +74,17 @@ const STYLES = `
   .chip:hover .del{opacity:1}
   .chip.confirming .del{opacity:1;background:rgba(248,81,73,.18);color:var(--red);width:auto;border-radius:10px;padding:0 7px;font-size:11px}
 
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;z-index:50;padding:24px;overflow:auto}
-  .modal.show{display:block}
-  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;max-width:900px;margin:0 auto}
-  .sheet header{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line);padding:14px 18px;
-                display:flex;gap:10px;align-items:center;border-radius:12px 12px 0 0;flex-wrap:wrap}
-  .sheet h3{margin:0;font-size:15px;flex:1;min-width:180px}
-  .sheet .body{padding:18px 22px}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;z-index:50;padding:24px}
+  .modal.show{display:flex;align-items:flex-start;justify-content:center}
+  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:100%;max-width:900px;
+         max-height:calc(100vh - 48px);display:flex;flex-direction:column;overflow:hidden;
+         box-shadow:0 24px 70px rgba(0,0,0,.6)}
+  .sheet header{flex:none;background:var(--panel);border-bottom:1px solid var(--line);padding:13px 18px;
+                display:flex;gap:10px 12px;align-items:center;flex-wrap:wrap}
+  .sheet h3{margin:0;font-size:15px;flex:1 1 100%;min-width:0;line-height:1.35}
+  .sheet header .meta{flex:1 1 auto;min-width:0;font-size:11.5px;overflow-wrap:anywhere}
+  .sheet header button{flex:none}
+  .sheet .body{padding:18px 22px;overflow:auto;flex:1 1 auto;min-height:0}
   .doc{white-space:pre-wrap;font:13.5px/1.65 ui-monospace,Consolas,monospace;color:#d7dee6}
   .working{padding:44px;text-align:center;color:var(--dim)}
   .working .spin{width:22px;height:22px;border-width:3px;display:block;margin:0 auto 14px}
@@ -104,6 +108,16 @@ let modalText = '';
 let openDocId = null;
 
 const KIND_LABEL = { advice: 'CV advice', cv: 'Tailored CV', cover: 'Cover letter', ask: 'Answer' };
+
+function shortModel(m) {
+  const parts = String(m || '').split(',').map((x) => x.trim()).filter(Boolean);
+  if (!parts.length) return '';
+  // Several models can appear when the CLI uses a small one for internal steps;
+  // the one that did the writing is what matters here.
+  const main = parts.find((x) => !/haiku/i.test(x)) || parts[parts.length - 1];
+  return main.replace(/-\d{8}$/, '');
+}
+
 const ASK_PRESETS = [
   "Pourquoi souhaitez-vous rejoindre notre entreprise ?",
   "Qu'est-ce qui vous intéresse dans ce poste ?",
@@ -297,7 +311,7 @@ async function generate(card, id, kind, extras = {}) {
       data.language ? 'written in ' + data.language.toUpperCase() : '',
       data.languageReason && data.languageReason !== 'matched the offer' ? '(' + data.languageReason + ')' : '',
     ].filter(Boolean).join(' · ');
-    const meta = [data.model + ' · $' + (data.cost||0).toFixed(3), src].filter(Boolean).join(' · ');
+    const meta = [shortModel(data.model) + ' · $' + (data.cost||0).toFixed(3), src].filter(Boolean).join(' · ');
     if (kind === 'cv' && data.structured) openCv(data.id, data.structured, meta);
     else openModal(heading, data.content, meta);
     showDocs(id);
@@ -336,7 +350,7 @@ document.addEventListener('click', async (e) => {
   if (docId) {
     e.preventDefault();
     const d = await (await fetch('/api/documents/' + docId)).json();
-    const meta = d.model + ' · ' + new Date(d.at).toLocaleString();
+    const meta = shortModel(d.model) + ' · ' + new Date(d.at).toLocaleString();
     if (d.kind === 'cv') { try { return openCv(d.id, JSON.parse(d.content), meta); } catch {} }
     openModal(KIND_LABEL[d.kind] || d.kind, d.content, meta);
     openDocId = Number(docId);
