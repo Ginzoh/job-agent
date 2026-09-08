@@ -407,7 +407,12 @@ export async function tailor(job, kind, options = {}) {
         structured,
         (c, o) => renderCvHtml(c, { ...o, ats: true }),
       );
+      // Both halves of the result matter. Fitting can reach one page by scaling,
+      // by dropping content, or by doing some of each — so keeping the scale
+      // and discarding the trim level yields a document that overflows exactly
+      // as far as the trimming would have saved it.
       structured.atsScale = atsFit.scale;
+      structured.atsTrim = atsFit.trim;
       structured.atsPages = atsFit.pages;
       structured.atsFitsOnePage = atsFit.fitted;
     }

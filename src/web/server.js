@@ -15,7 +15,7 @@ import { renderHome } from './home.js';
 import { renderCompanies } from './companies-ui.js';
 import { listCompanies, getCompany, setCompanyStatus, companyStats } from '../lib/db.js';
 import { discoverCompanies, scoreCompanies, asPseudoJob } from '../core/companies.js';
-import { htmlToPdf, pdfAvailable, renderCvPdfFitted } from '../core/pdf.js';
+import { htmlToPdf, pdfAvailable, renderCvPdfFitted, trimCv } from '../core/pdf.js';
 import { log, c } from '../lib/log.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -156,8 +156,17 @@ async function handle(req, res) {
     // the designed one is for a human. ?style=designed asks for the other.
     const ats = url.searchParams.get('style') !== 'designed';
     const render = (c, o = {}) => renderCvHtml(c, { ...o, ats });
-    const html = render(cv);
-    const storedScale = ats ? cv.atsScale : cv.scale;
+
+    // Fitting the ATS layout can involve dropping content as well as scaling,
+    // so the stored trim level has to be reapplied here. Only the serving path
+    // does this: the fitter trims its own candidates and must not be given a
+    // document that has already been trimmed once.
+    const base = ats && cv.atsTrim ? trimCv(cv, cv.atsTrim) : cv;
+    const html = render(base);
+
+    // A document holding a scale but no trim level predates that fix, and its
+    // scale alone will not fit. Treat it as unfitted and redo the work.
+    const storedScale = ats ? (cv.atsTrim === undefined ? null : cv.atsScale) : cv.scale;
     const filename = `CV_${(cv.name || 'cv').replace(/[^\w]+/g, '_')}_${(cv.title || '').replace(/[^\w]+/g, '_').slice(0, 40)}${ats ? '_ATS' : ''}`.replace(/_+$/, '');
 
     if (format === 'pdf') {
