@@ -13,6 +13,26 @@ import { testCredentials as testFranceTravail } from './sources/francetravail.js
 import { env, profile, filters, hasAdzuna, hasFranceTravail } from './config.js';
 import { log, c, scoreColor } from './lib/log.js';
 import { daysAgo, truncate } from './lib/text.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { ROOT } from './config.js';
+
+/**
+ * Which identifying profile fields still hold the example's text.
+ *
+ * Compared against config/profile.example.json rather than a hardcoded list,
+ * so the check cannot drift out of date when the example changes.
+ */
+function uneditedProfileFields() {
+  let example;
+  try {
+    example = JSON.parse(readFileSync(join(ROOT, 'config', 'profile.example.json'), 'utf8'));
+  } catch {
+    return []; // No example to compare against; say nothing rather than guess.
+  }
+  return ['name', 'headline', 'summary']
+    .filter((k) => example[k] && profile[k] === example[k]);
+}
 
 const [, , command = 'help', ...rest] = process.argv;
 const flags = parseFlags(rest);
@@ -322,7 +342,13 @@ async function cmdDoctor() {
   check((profile.skills?.expert ?? []).length > 0, `expert skills: ${(profile.skills?.expert ?? []).join(', ')}`);
   check(true, `accepting: ${(profile.seeking?.contract_types ?? []).join(', ')}`);
   check(true, `locations: ${(filters.location?.accept ?? []).slice(0, 6).join(', ')}…`);
-  log.plain(`  ${c.grey('⚠ config/profile.json still has the default text — edit it so scoring reflects YOUR CV')}`);
+  // Only say this when it is true. An unconditional warning is noise for
+  // anyone who has already edited their profile, and it teaches them to skim
+  // past the warnings that do matter.
+  const placeholders = uneditedProfileFields();
+  if (placeholders.length) {
+    log.plain(`  ${c.grey(`⚠ config/profile.json still has the example text for: ${placeholders.join(', ')} — edit it so scoring reflects YOUR CV`)}`);
+  }
 
   log.step('LLM backend');
   if (env.llmBackend === 'none') {

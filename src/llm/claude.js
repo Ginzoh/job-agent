@@ -20,7 +20,7 @@ export class HardStopError extends Error {
 const PATTERNS = [
   ['billing', /credit balance|insufficient (?:credit|fund|balance)|out of credit|payment required|billing|\b402\b|purchase more|add funds|spend(?:ing)? limit/i],
   ['limit',   /rate[ _-]?limit|\b429\b|usage limit|quota (?:exceeded|reached)|too many requests|limit (?:reached|exceeded)|try again (?:later|at)|resets? at/i],
-  ['auth',    /\b401\b|unauthorized|not (?:logged in|authenticated)|invalid (?:api )?key|authentication (?:failed|required)|please run .?claude.? to log in/i],
+  ['auth',    /\b401\b|unauthorized|not (?:logged in|authenticated)|invalid (?:api )?key|authentication (?:failed|required)|signed out|please run .?claude.? to log in/i],
 ];
 
 /** Decide whether a CLI failure is fatal to the run or just a bad batch. */
@@ -101,7 +101,7 @@ export async function complete({ system, prompt, timeout = env.llmTimeoutMs, mod
   // web, and it pays for that in both latency and tokens.
   if (Array.isArray(tools) && tools.length) args.push('--allowedTools', ...tools);
 
-  const raw = await run(args, prompt, timeout);
+  const raw = await runWithRetry(args, prompt, timeout);
 
   let payload;
   try {
@@ -131,10 +131,93 @@ export async function available() {
   }
   try {
     await run(['--version'], null, 20000);
-    return { ok: true };
   } catch (err) {
     return { ok: false, reason: `\`claude\` CLI not runnable (${err.message}). Run \`claude\` once to log in.` };
   }
+
+  // --version answers from a signed-out CLI just as happily as from a signed-in
+  // one, so it proves nothing about whether a run will work. A one-word
+  // completion is the cheapest thing that actually exercises the login, and it
+  // is what turns "everything looks fine" into a real answer.
+  try {
+    await complete({ system: 'Reply with the single word: ok', prompt: 'ping', timeout: 60000 });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: err.message };
+  }
+}
+
+// Failures worth one more attempt: the transport gave out mid-call. Timeouts
+// are excluded — retrying one doubles the wait for something already slow —
+// and so is an empty turn, which in practice means the CLI is logged out and
+// will answer the same way every time.
+const TRANSIENT = /error during execution|overloaded|API status 5\d\d|econnreset|socket hang up|premature close/i;
+
+/**
+ * Run the CLI, retrying once on a transient failure.
+ *
+ * A dropped connection costs nothing and usually succeeds immediately
+ * afterwards, so failing a whole CV generation on one wastes the user's time.
+ */
+async function runWithRetry(args, stdin, timeout) {
+  try {
+    return await run(args, stdin, timeout);
+  } catch (err) {
+    if (err instanceof HardStopError || !TRANSIENT.test(err.message)) throw err;
+    await new Promise((r) => setTimeout(r, 1500));
+    return run(args, stdin, timeout);
+  }
+}
+
+/**
+ * Turn the CLI's own output into something worth reading.
+ *
+ * On failure the CLI still prints its result envelope, which carries the
+ * reason — a subtype, an API status, sometimes a message in `result`. Passed
+ * through raw it becomes 300 characters of zeroed token counters cut off
+ * mid-key, which says nothing and looks like a crash in this project.
+ *
+ * Falls back to the raw text when the output is not an envelope, since a plain
+ * error line from the CLI is already the message.
+ */
+function describeFailure(stdout = '') {
+  const text = String(stdout).trim();
+  if (!text.startsWith('{')) return text;
+
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    return text;
+  }
+
+  const usage = payload.usage ?? {};
+  const said = typeof payload.result === 'string' ? payload.result.trim() : '';
+
+  // An envelope with nothing in it at all — no output, no cost, no API status,
+  // no message — is what a logged-out CLI returns. It never reached the API,
+  // which is why every counter reads zero. Saying "empty response" would send
+  // someone looking for a bug in the prompt; the fix is to log in.
+  const nothingHappened =
+    !said &&
+    !payload.api_error_status &&
+    (usage.output_tokens ?? 0) === 0 &&
+    (usage.input_tokens ?? 0) === 0 &&
+    (payload.total_cost_usd ?? 0) === 0;
+
+  if (nothingHappened) {
+    return 'the claude CLI produced nothing and never called the API — it is most likely signed out. '
+      + 'Run `claude` once in a terminal to log in, then try again.';
+  }
+
+  const parts = [
+    payload.subtype && payload.subtype !== 'success' ? payload.subtype.replace(/_/g, ' ') : null,
+    payload.api_error_status ? `API status ${payload.api_error_status}` : null,
+    said || null,
+    payload.stop_reason ? `(stop reason: ${payload.stop_reason})` : null,
+  ].filter(Boolean);
+
+  return parts.join(' — ') || text;
 }
 
 /**
@@ -203,7 +286,10 @@ function run(args, stdin, timeout) {
       settled = true;
       clearTimeout(timer);
       if (code !== 0) {
-        const message = (err + '\n' + out).trim();
+        // A failing CLI still prints its JSON envelope on stdout, and that
+        // envelope says why. Dumping the first 300 raw characters instead
+        // shows the user a wall of token counters truncated mid-key.
+        const message = (err + '\n' + describeFailure(out)).trim();
         try {
           raiseIfHardStop(message);
         } catch (hard) {

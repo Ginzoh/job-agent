@@ -120,46 +120,86 @@ export function detectSalary(text = '') {
 }
 
 // Function words are the giveaway: they appear constantly in prose and almost
-// never in the shared technical vocabulary that makes FR and EN job posts look
-// alike ("React", "TypeScript", "CI/CD" tell you nothing about the language).
-const FR_MARKERS = ['le', 'la', 'les', 'des', 'une', 'un', 'du', 'et', 'est', 'pour', 'vous', 'nous', 'avec', 'dans', 'sur', 'au', 'aux', 'par', 'plus', 'que', 'qui', 'ce', 'sont', 'chez', 'notre', 'votre', 'ses', 'leur', 'être', 'avoir', 'sera', 'poste', 'équipe', 'entreprise', 'développement', 'expérience', 'compétences', 'missions', 'profil', 'recherche', 'ans'];
-const EN_MARKERS = ['the', 'and', 'of', 'to', 'in', 'for', 'with', 'you', 'we', 'our', 'is', 'are', 'will', 'have', 'has', 'this', 'that', 'as', 'at', 'be', 'your', 'their', 'from', 'team', 'experience', 'skills', 'role', 'company', 'work', 'years', 'about', 'who', 'what'];
+// never in the shared technical vocabulary that makes job posts in different
+// languages look alike ("React", "TypeScript", "CI/CD" tell you nothing).
+//
+// Every language the sources actually reach needs an entry, not just the two
+// that can be written in. A two-way French/English test has nowhere to put a
+// Swedish posting, so it assigns one of the two — and Swedish "du" ("you"),
+// which is also French "du", is enough on its own to make a Göteborg advert
+// look French. Being able to answer "neither" is the whole point.
+const MARKERS = {
+  en: ['the', 'and', 'of', 'to', 'in', 'for', 'with', 'you', 'we', 'our', 'is', 'are', 'will', 'have', 'has', 'this', 'that', 'as', 'at', 'be', 'your', 'their', 'from', 'team', 'experience', 'skills', 'role', 'company', 'work', 'years', 'about', 'who', 'what'],
+  fr: ['le', 'la', 'les', 'des', 'une', 'un', 'du', 'et', 'est', 'pour', 'vous', 'nous', 'avec', 'dans', 'sur', 'au', 'aux', 'par', 'plus', 'que', 'qui', 'ce', 'sont', 'chez', 'notre', 'votre', 'ses', 'leur', 'être', 'avoir', 'sera', 'poste', 'équipe', 'entreprise', 'développement', 'expérience', 'compétences', 'missions', 'profil', 'recherche', 'ans'],
+  sv: ['och', 'att', 'som', 'med', 'av', 'till', 'den', 'det', 'vi', 'är', 'ett', 'på', 'du', 'din', 'ditt', 'har', 'kan', 'inom', 'eller', 'men', 'vill', 'söker', 'arbeta', 'utveckling', 'erfarenhet', 'tjänsten', 'anställning', 'oss', 'våra', 'hos', 'kommer', 'även'],
+  da: ['og', 'at', 'som', 'med', 'af', 'til', 'den', 'det', 'vi', 'er', 'et', 'på', 'du', 'din', 'dit', 'har', 'kan', 'eller', 'men', 'vil', 'søger', 'arbejde', 'udvikling', 'erfaring', 'stillingen', 'vores', 'hos', 'dig', 'ikke', 'både'],
+  de: ['und', 'der', 'die', 'das', 'mit', 'für', 'von', 'ist', 'sind', 'wir', 'sie', 'ihre', 'eine', 'einen', 'dem', 'den', 'im', 'bei', 'auf', 'als', 'oder', 'nicht', 'auch', 'erfahrung', 'entwicklung', 'kenntnisse', 'unser', 'unsere', 'werden', 'wird'],
+  nl: ['het', 'een', 'van', 'voor', 'met', 'zijn', 'wij', 'je', 'jouw', 'onze', 'bij', 'naar', 'ook', 'niet', 'maar', 'ervaring', 'ontwikkeling', 'werken', 'binnen', 'wordt', 'worden', 'aan', 'op', 'te'],
+  // The remote boards carry the occasional Latin-American posting. Without
+  // these two, their accents fall through to French and a Brazilian sales role
+  // comes back as a French CV.
+  es: ['de', 'que', 'para', 'con', 'los', 'las', 'una', 'por', 'como', 'más', 'nuestro', 'nuestra', 'tu', 'experiencia', 'desarrollo', 'trabajo', 'empresa', 'equipo', 'buscamos', 'tienes', 'sobre', 'pero', 'también', 'ser'],
+  pt: ['de', 'que', 'para', 'com', 'uma', 'por', 'como', 'mais', 'nossa', 'nosso', 'você', 'experiência', 'desenvolvimento', 'trabalho', 'empresa', 'equipe', 'sobre', 'não', 'ou', 'em', 'na', 'no', 'dos', 'das'],
+};
+
+// Markers are matched against folded text, so they have to be folded too —
+// otherwise "för" and "är" could never match, having lost their diacritics.
+const FOLDED = Object.fromEntries(
+  Object.entries(MARKERS).map(([code, words]) => [code, new Set(words.map((w) => fold(w)))]),
+);
+
+// Letters that only some of these languages use. Weaker evidence than function
+// words — a single name can carry one — so they are capped low.
+const LETTERS = [
+  [/[éèêëàâçîïôùû]/gi, 'fr'],
+  [/[åäö]/gi, 'sv'],
+  [/[æø]/gi, 'da'],
+  [/ß/gi, 'de'],
+  [/[ñ¿¡]/gi, 'es'],
+  [/[ãõ]/gi, 'pt'],
+];
+
+// Phrases that are decisively French in a job posting.
+const FR_PHRASES = ['h f', 'f h', 'cdi', 'cdd', 'tjm', 'teletravail', 'developpeur', 'poste est'];
 
 /**
- * Guess whether a block of text is French or English.
+ * Guess which language a block of text is written in.
  *
- * Returns 'fr', 'en', or null when there isn't enough signal to be sure —
- * null matters, because guessing wrong is worse than falling back to a default.
+ * Returns an ISO code, or null when no language is clearly ahead — null
+ * matters, because guessing wrong is worse than falling back to a default.
+ * A code outside what the candidate writes is a useful answer too: it lets
+ * the caller say "this advert is Swedish, so write in English" rather than
+ * silently producing a French CV for a Göteborg role.
  */
 export function detectLanguage(text = '') {
-  const sample = fold(String(text).slice(0, 6000));
+  const raw = String(text).slice(0, 6000);
+  const sample = fold(raw);
   if (sample.length < 40) return null;
 
-  const words = sample.split(/\s+/);
-  const counts = new Set(words);
+  const scores = Object.fromEntries(Object.keys(MARKERS).map((c) => [c, 0]));
 
-  let fr = 0;
-  let en = 0;
-  for (const w of words) {
-    if (FR_MARKERS.includes(w)) fr++;
-    if (EN_MARKERS.includes(w)) en++;
+  for (const word of sample.split(/\s+/)) {
+    for (const [code, set] of Object.entries(FOLDED)) {
+      if (set.has(word)) scores[code]++;
+    }
   }
 
-  // Accented characters and French-specific punctuation are strong extra signal.
-  const accents = (String(text).match(/[éèêëàâçîïôûùü]/gi) || []).length;
-  fr += Math.min(accents / 4, 25);
-
-  // Distinctive French bigrams that survive folding.
-  for (const phrase of ['h f', 'f h', 'cdi', 'cdd', 'tjm', 'teletravail', 'developpeur', 'poste est']) {
-    if (counts.has(phrase) || sample.includes(phrase)) fr += 3;
+  for (const [re, code] of LETTERS) {
+    scores[code] += Math.min((raw.match(re) || []).length / 4, 12);
   }
 
-  const total = fr + en;
-  if (total < 6) return null;
-  const ratio = fr / total;
-  if (ratio > 0.62) return 'fr';
-  if (ratio < 0.38) return 'en';
-  return null;
+  for (const phrase of FR_PHRASES) {
+    if (sample.includes(phrase)) scores.fr += 3;
+  }
+
+  const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const [winner, top] = ranked[0];
+  const runnerUp = ranked[1][1];
+
+  // Enough evidence, and clearly more of it than for any other language.
+  if (top < 6) return null;
+  if (top < runnerUp * 1.35) return null;
+  return winner;
 }
 
 /** Stable identity for a posting, so re-runs don't create duplicates. */
