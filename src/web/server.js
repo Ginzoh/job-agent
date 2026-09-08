@@ -17,6 +17,7 @@ import { listCompanies, getCompany, setCompanyStatus, companyStats } from '../li
 import { discoverCompanies, scoreCompanies, asPseudoJob } from '../core/companies.js';
 import { htmlToPdf, pdfAvailable, renderCvPdfFitted, trimCv } from '../core/pdf.js';
 import { zipSync, safeName } from '../core/zip.js';
+import { renderLetterHtml } from '../core/letter.js';
 import { log, c } from '../lib/log.js';
 
 /**
@@ -43,6 +44,35 @@ function applicationFolder(doc) {
   // "job_company" — the shape an existing archive of sent applications uses.
   const parts = [safeName(job.title, { max: 60 }), safeName(job.company, { max: 40 })].filter(Boolean);
   return parts.join('_') || safeName(`Application ${jobId}`);
+}
+
+/**
+ * The cover letter that accompanies a CV, rendered as a PDF for the folder.
+ *
+ * Letters are stored as Markdown against the same job id, so the newest one
+ * for this application is the one to include. Returns null when there is no
+ * letter, or when no browser is available to render it — an application is
+ * perfectly valid without one, and half a download is worse than a plain CV.
+ */
+async function coverLetterPdf(cvDoc, person) {
+  const letter = listDocuments(cvDoc.job_id).find((d) => d.kind === 'cover');
+  if (!letter) return null;
+
+  const full = getDocument(letter.id);
+  if (!full?.content?.trim()) return null;
+
+  let language = 'en';
+  try {
+    language = JSON.parse(full.options ?? '{}').language || 'en';
+  } catch { /* options are advisory; the letter still renders in English */ }
+
+  const data = await htmlToPdf(renderLetterHtml(full.content, { language }));
+  if (!data) return null;
+
+  // Named in the language it is written in, since that is how it will be
+  // filed and how the recipient will see it.
+  const stem = language === 'fr' ? 'Lettre_de_motivation' : 'Cover_letter';
+  return { name: `${stem}_${person}.pdf`, data };
 }
 
 /**
@@ -228,8 +258,17 @@ async function handle(req, res) {
         // the folder already says which application it is, and a recruiter
         // opening the file wants to see whose CV they have.
         const folder = applicationFolder(doc);
-        const cvName = `CV_${safeName(cv.name || 'CV').replace(/ /g, '_')}.pdf`;
-        const archive = zipSync([{ name: `${folder}/${cvName}`, data: bytes }], { at: new Date(doc.at) });
+        const person = safeName(cv.name || 'CV').replace(/ /g, '_');
+        const entries = [{ name: `${folder}/CV_${person}.pdf`, data: bytes }];
+
+        // A letter written for the same application belongs in the same folder.
+        // Its absence is not an error — plenty of applications are a CV and a
+        // form — so a missing or unrenderable letter is skipped quietly rather
+        // than failing the download.
+        const letter = await coverLetterPdf(doc, person);
+        if (letter) entries.push({ name: `${folder}/${letter.name}`, data: letter.data });
+
+        const archive = zipSync(entries, { at: new Date(doc.at) });
 
         res.writeHead(200, {
           'content-type': 'application/zip',

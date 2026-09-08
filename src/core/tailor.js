@@ -6,6 +6,7 @@ import { truncate, detectLanguage } from '../lib/text.js';
 import { renderCvHtml } from './cv-render.js';
 import { renderCvPdfFitted, pdfAvailable } from './pdf.js';
 import { resolveLanguage, writableLanguages, languageName } from './language.js';
+import { letterBody } from './letter.js';
 
 /**
  * Application-writing tools: what to change in the CV for a given role, a
@@ -362,6 +363,11 @@ export async function tailor(job, kind, options = {}) {
   // The CV comes back as structured data so it can be laid out as a real
   // document; everything else is prose and stays as Markdown.
   let content = cleanOutput(result.text);
+
+  // A letter is a document someone else will read, so it cannot carry the
+  // model's remarks about writing it. Stripping here means what is stored is
+  // what gets sent, rather than something cleaned up on the way out.
+  if (kind === 'cover') content = letterBody(content);
   let structured = null;
 
   if (spec.json) {

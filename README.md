@@ -153,7 +153,7 @@ The panel opens on **What changed**: a table of section / before → after / why
 
 | Button | |
 |---|---|
-| **⬇ Download folder** | A zip that expands to `Job title_Company/CV_Your_Name.pdf`, for keeping one folder per application |
+| **⬇ Download folder** | A zip that expands to one folder per application — `Job title_Company/` holding `CV_Your_Name.pdf`, plus the cover letter as a PDF if you generated one |
 | **PDF only** | The bare file, for dropping straight into an upload box |
 | **Open printable ↗** | The A4 page in a tab — `Ctrl+P` if you want the browser's own PDF settings |
 | **Plain text** | For pasting into an application form |
