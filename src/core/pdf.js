@@ -110,24 +110,29 @@ export function trimCv(cv, level) {
   const c = structuredClone(cv);
   const cap = (arr, n) => (Array.isArray(arr) ? arr.slice(0, n) : arr);
 
-  if (level >= 1) c.interests = [];
-  if (level >= 1) c.personalSkills = cap(c.personalSkills, 3);
+  // Interests go first: pleasant to read, never decisive.
+  if (level >= 1) { c.interests = []; c.personalSkills = cap(c.personalSkills, 3); }
 
-  if (level >= 2) c.projects = [];
+  // Then personal skills. Self-declared traits carry far less weight than
+  // evidence of something built, so they are spent before projects are touched.
   if (level >= 2) c.personalSkills = [];
 
-  if (level >= 3) {
+  // Projects only now. With two years of employment behind them, a shipped
+  // project is often the strongest evidence on the page.
+  if (level >= 3) c.projects = [];
+
+  if (level >= 4) {
     c.skills = cap(c.skills, 5)?.map((g) => ({ ...g, items: cap(g.items, 5) }));
     c.education = c.education?.map((e) => ({ ...e, bullets: cap(e.bullets, 1) }));
   }
 
-  if (level >= 4) {
+  if (level >= 5) {
     c.skills = cap(c.skills, 4)?.map((g) => ({ ...g, items: cap(g.items, 4) }));
     // Trim older roles first; the most recent keeps one bullet more.
     c.experience = c.experience?.map((e, i) => ({ ...e, bullets: cap(e.bullets, i === 0 ? 4 : 3) }));
   }
 
-  if (level >= 5) {
+  if (level >= 6) {
     c.experience = c.experience?.map((e, i) => ({ ...e, bullets: cap(e.bullets, i === 0 ? 3 : 2) }));
     c.education = c.education?.map((e) => ({ ...e, bullets: [] }));
   }
@@ -143,10 +148,15 @@ export function trimCv(cv, level) {
  * stops looking deliberate and starts looking squeezed, so past that point the
  * fix is to remove content instead, cheapest material first.
  *
+ * The scale rungs are deliberately close together. A coarse ladder makes the
+ * fitter overshoot: a CV that would have fitted at 0.91 gets rendered at 0.86
+ * simply because nothing in between was tried, and the reader sees needlessly
+ * small type.
+ *
  * Each attempt is a genuine render: producing the PDF is the only way to know
  * the true page count.
  */
-export async function renderCvPdfFitted(cv, renderHtml, { maxPages = 1, scales = [1, 0.93, 0.86], maxTrim = 5, deadlineMs = 90000 } = {}) {
+export async function renderCvPdfFitted(cv, renderHtml, { maxPages = 1, scales = [1, 0.96, 0.93, 0.91, 0.89, 0.86], maxTrim = 6, deadlineMs = 150000 } = {}) {
   let last = null;
   const startedAt = Date.now();
 

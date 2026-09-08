@@ -292,10 +292,11 @@ const TASKS = {
 // table says what was cut rather than just that something was.
 const TRIM_SUMMARY = {
   1: 'Dropped interests and trimmed personal skills',
-  2: 'Dropped interests, personal skills and the projects section',
-  3: 'Also capped skill groups and shortened education detail',
-  4: 'Also reduced experience to the four strongest bullets per role',
-  5: 'Reduced to the essentials only — three bullets per role, no education detail',
+  2: 'Also dropped personal skills',
+  3: 'Also dropped the projects section',
+  4: 'Also capped skill groups and shortened education detail',
+  5: 'Also reduced experience to the four strongest bullets per role',
+  6: 'Reduced to the essentials only — three bullets per role, no education detail',
 };
 
 const TONES = {
@@ -389,7 +390,7 @@ export async function tailor(job, kind, options = {}) {
         structured.changes = [...changes, {
           section: 'Length',
           before: 'Ran onto a second page',
-          after: TRIM_SUMMARY[Math.min(fit.trim, 5)],
+          after: TRIM_SUMMARY[Math.min(fit.trim, 6)],
           why: 'a CV has to fit one page — cut the least relevant material for this role first',
         }];
       }

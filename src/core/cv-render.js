@@ -221,28 +221,34 @@ export function renderCvAtsHtml(cv = {}, { scale = 1 } = {}) {
 <meta charset="utf-8">
 <title>${esc(cv.name || 'CV')}${cv.title ? ' — ' + esc(cv.title) : ''}</title>
 <style>
-  @page { size: A4; margin: 14mm 15mm; }
+  @page { size: A4; margin: 11mm 14mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: Arial, Helvetica, "Liberation Sans", sans-serif;
     font-size: calc(10.5pt * ${scale});
-    line-height: 1.34;
+    line-height: 1.27;
     color: #000; background: #fff;
-    width: 180mm; margin: 0 auto;
+    width: 182mm; margin: 0 auto;
   }
-  h1 { font-size: calc(17pt * ${scale}); font-weight: bold; margin-bottom: 1mm; }
-  .subtitle { font-size: calc(11.5pt * ${scale}); margin-bottom: 2mm; }
+  h1 { font-size: calc(17pt * ${scale}); font-weight: bold; margin-bottom: 0.6mm; }
+  .subtitle { font-size: calc(11.5pt * ${scale}); margin-bottom: 1.4mm; }
   .contact { font-size: calc(10pt * ${scale}); }
-  .summary { margin: 3mm 0 1mm; }
+  .summary { margin: 2.2mm 0 0.5mm; }
   h2 {
     font-size: calc(11pt * ${scale}); font-weight: bold; text-transform: uppercase;
-    margin: calc(5mm * ${scale}) 0 calc(1.6mm * ${scale});
-    padding-bottom: 0.8mm; border-bottom: 1px solid #000;
+    margin: calc(3.4mm * ${scale}) 0 calc(1.3mm * ${scale});
+    padding-bottom: 0.6mm; border-bottom: 1px solid #000;
   }
-  .role { font-weight: bold; margin-top: calc(2.6mm * ${scale}); }
-  .org { margin-bottom: 0.8mm; }
-  .b { margin-bottom: 0.6mm; }
-  @media screen { body { padding: 10mm; box-shadow: 0 2px 22px rgba(0,0,0,.16); margin: 18px auto; } }
+  .role { font-weight: bold; margin-top: calc(1.9mm * ${scale}); }
+  .org { margin-bottom: 0.5mm; }
+  .b { margin-bottom: 0.35mm; }
+  /* On screen the body has to carry the page margins itself so the preview
+     wraps text at exactly the same width as the printed page. box-sizing is
+     border-box, so the full sheet width goes here and the padding comes out of
+     it — leaving the same 182mm of content the @page rule gives the PDF. */
+  @media screen {
+    body { width: 210mm; padding: 11mm 14mm; box-shadow: 0 2px 22px rgba(0,0,0,.16); margin: 18px auto; }
+  }
 </style>
 </head>
 <body>
