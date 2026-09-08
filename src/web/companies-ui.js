@@ -111,6 +111,37 @@ let openId = null;
 let modalText = '';
 let openDocId = null;
 
+
+// Remembered across sessions so the choice is made once, not per CV. Wrapped
+// because storage throws outright in some privacy modes.
+function cvLayout() {
+  try { return localStorage.getItem('cvLayout') === 'designed' ? 'designed' : 'ats'; }
+  catch { return 'ats'; }
+}
+function setCvLayout(v) {
+  try { localStorage.setItem('cvLayout', v === 'designed' ? 'designed' : 'ats'); } catch {}
+  // Keep every visible control in step, wherever it lives.
+  for (const sel of document.querySelectorAll('[data-cvlayout]')) sel.value = cvLayout();
+  for (const box of document.querySelectorAll('[data-atstoggle]')) box.checked = cvLayout() === 'ats';
+  applyCvLayoutLinks();
+}
+function applyCvLayoutLinks() {
+  const q = cvLayout() === 'ats' ? '' : '?style=designed';
+  for (const [id, el] of [['cvPdf', document.getElementById('cvPdf')], ['cvPrint', document.getElementById('cvPrint')]]) {
+    if (el) el.href = el.href.split('?')[0] + q;
+  }
+  const frame = document.querySelector('.cvframe');
+  if (frame && frame.src.split('?')[0] + q !== frame.src) frame.src = frame.src.split('?')[0] + q;
+}
+function cvLayoutOptionHtml() {
+  const l = cvLayout();
+  return '<label title="ATS-safe is one column with plain headings so applicant tracking systems parse it correctly. Designed is the two-column version for a human reader. Switching costs nothing — both come from the same generated CV.">CV layout ' +
+    '<select data-cvlayout>' +
+      '<option value="ats"' + (l === 'ats' ? ' selected' : '') + '>ATS-safe</option>' +
+      '<option value="designed"' + (l === 'designed' ? ' selected' : '') + '>Designed</option>' +
+    '</select></label>';
+}
+
 const KIND_LABEL = { advice: 'CV advice', cv: 'Tailored CV', cover: 'Cover letter', ask: 'Answer' };
 
 function shortModel(m) {
@@ -238,6 +269,7 @@ function detailHtml(co) {
       '<label>Language <select data-opt="language"><option value="">auto (your languages)</option><option value="fr">Français</option><option value="en">English</option></select></label>' +
       '<label>Max characters <input type="number" data-opt="maxChars" placeholder="2200" min="300" step="100"></label>' +
       '<label>Tone <select data-opt="tone"><option value="professional">Professional</option><option value="warm">Warm</option><option value="direct">Direct</option><option value="enthusiastic">Enthusiastic</option></select></label>' +
+      cvLayoutOptionHtml() +
       '<input type="text" data-opt="notes" placeholder="Anything else? e.g. \\'mention I can start immediately\\'">' +
     '</div>' +
     askPanelHtml();
@@ -417,13 +449,14 @@ function openCv(docId, cv, meta) {
       '<button data-tab="preview">Preview the CV</button>' +
       '<a href="/cv/' + docId + '/pdf" download id="cvPdf"><button class="primary">⬇ Download PDF</button></a>' +
       '<a href="/cv/' + docId + '" target="_blank" rel="noopener" id="cvPrint"><button>Open printable ↗</button></a>' +
-      '<label class="atsToggle" title="ATS layout is one column with plain headings, so applicant tracking systems parse it correctly. The designed layout is the two-column version for a human reader."><input type="checkbox" data-atstoggle checked> ATS-safe</label>' +
+      '<label class="atsToggle" title="ATS layout is one column with plain headings, so applicant tracking systems parse it correctly. The designed layout is the two-column version for a human reader."><input type="checkbox" data-atstoggle ' + (cvLayout() === 'ats' ? 'checked' : '') + '> ATS-safe</label>' +
     '</div>' +
     '<div data-panel="changes">' +
       (changes ? '<table class="chg"><thead><tr><th>Section</th><th>Change</th><th>Why</th></tr></thead><tbody>' + changes + '</tbody></table>'
                : '<p class="meta">No changes were reported.</p>') + gaps +
     '</div>' +
     '<div data-panel="preview" style="display:none"><iframe class="cvframe" src="/cv/' + docId + '"></iframe></div>';
+  applyCvLayoutLinks();
   $('#modal').classList.add('show');
 }
 
@@ -434,17 +467,9 @@ $('#modalBody').addEventListener('click', (e) => {
   for (const p of $('#modalBody').querySelectorAll('[data-panel]')) p.style.display = p.dataset.panel === tab ? '' : 'none';
 });
 
-// The links carry the style, so toggling rewrites them and the preview iframe.
 document.addEventListener('change', (e) => {
-  if (!e.target.matches?.('[data-atstoggle]')) return;
-  const ats = e.target.checked;
-  const q = ats ? '' : '?style=designed';
-  const pdf = document.getElementById('cvPdf');
-  const print = document.getElementById('cvPrint');
-  if (pdf) pdf.href = pdf.href.split('?')[0] + q;
-  if (print) print.href = print.href.split('?')[0] + q;
-  const frame = document.querySelector('.cvframe');
-  if (frame) frame.src = frame.src.split('?')[0] + q;
+  if (e.target.matches?.('[data-cvlayout]')) return setCvLayout(e.target.value);
+  if (e.target.matches?.('[data-atstoggle]')) return setCvLayout(e.target.checked ? 'ats' : 'designed');
 });
 $('#modalClose').onclick = () => $('#modal').classList.remove('show');
 $('#modal').onclick = (e) => { if (e.target.id === 'modal') $('#modal').classList.remove('show'); };
