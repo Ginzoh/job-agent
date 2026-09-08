@@ -16,7 +16,47 @@ import { renderCompanies } from './companies-ui.js';
 import { listCompanies, getCompany, setCompanyStatus, companyStats } from '../lib/db.js';
 import { discoverCompanies, scoreCompanies, asPseudoJob } from '../core/companies.js';
 import { htmlToPdf, pdfAvailable, renderCvPdfFitted, trimCv } from '../core/pdf.js';
+import { zipSync, safeName } from '../core/zip.js';
 import { log, c } from '../lib/log.js';
+
+/**
+ * Where a generated document belongs on disk, for someone keeping one folder
+ * per application.
+ *
+ * Documents are keyed by job id, and a speculative application carries the
+ * synthetic id "company:<n>" — so both cases have to resolve back to a real
+ * title and company name.
+ */
+function applicationFolder(doc) {
+  const jobId = String(doc.job_id ?? '');
+
+  if (jobId.startsWith('company:')) {
+    // Company ids are opaque hex strings, not numbers — coercing loses them.
+    const co = getCompany(jobId.slice('company:'.length));
+    // Nothing was advertised, so there is no role to name the folder after.
+    return safeName(co ? `Speculative ${co.name}` : `Speculative application ${jobId}`);
+  }
+
+  const job = getJob(jobId);
+  if (!job) return safeName(`Application ${jobId}`);
+
+  // "job_company" — the shape an existing archive of sent applications uses.
+  const parts = [safeName(job.title, { max: 60 }), safeName(job.company, { max: 40 })].filter(Boolean);
+  return parts.join('_') || safeName(`Application ${jobId}`);
+}
+
+/**
+ * A Content-Disposition value that survives a non-ASCII name.
+ *
+ * Header values are not UTF-8: an accent would be misread and an em dash — the
+ * kind of thing a French job title carries routinely — makes Node reject the
+ * header outright. RFC 6266 covers this with two filenames, a plain ASCII one
+ * for old clients and an encoded one that every current browser prefers.
+ */
+function attachment(name) {
+  const ascii = [...name].map((ch) => (ch.codePointAt(0) < 128 && ch !== '"' ? ch : '_')).join('');
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+}
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const sessions = new Set();
@@ -169,7 +209,10 @@ async function handle(req, res) {
     const storedScale = ats ? (cv.atsTrim === undefined ? null : cv.atsScale) : cv.scale;
     const filename = `CV_${(cv.name || 'cv').replace(/[^\w]+/g, '_')}_${(cv.title || '').replace(/[^\w]+/g, '_').slice(0, 40)}${ats ? '_ATS' : ''}`.replace(/_+$/, '');
 
-    if (format === 'pdf') {
+    // 'pdf' hands back the file on its own; 'zip' wraps it in a folder named
+    // after the application, which is the only way a browser can deliver a
+    // directory rather than a loose file.
+    if (format === 'pdf' || format === 'zip') {
       // Documents generated before this layout existed carry no scale for it,
       // so fit them now rather than serving something that overflows.
       const bytes = storedScale
@@ -179,6 +222,24 @@ async function handle(req, res) {
       if (!bytes) {
         return send(res, 503, { error: 'no Chrome or Edge available to render a PDF. Open the printable page and use Ctrl+P → Save as PDF instead.' });
       }
+
+      if (format === 'zip') {
+        // Inside the folder the CV is named after the candidate, not the role:
+        // the folder already says which application it is, and a recruiter
+        // opening the file wants to see whose CV they have.
+        const folder = applicationFolder(doc);
+        const cvName = `CV_${safeName(cv.name || 'CV').replace(/ /g, '_')}.pdf`;
+        const archive = zipSync([{ name: `${folder}/${cvName}`, data: bytes }], { at: new Date(doc.at) });
+
+        res.writeHead(200, {
+          'content-type': 'application/zip',
+          'content-disposition': attachment(`${folder}.zip`),
+          'content-length': archive.length,
+          'cache-control': 'no-store',
+        });
+        return res.end(archive);
+      }
+
       res.writeHead(200, {
         'content-type': 'application/pdf',
         'content-disposition': `attachment; filename="${filename}.pdf"`,

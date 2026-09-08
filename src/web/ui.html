@@ -498,7 +498,8 @@ function setCvLayout(v) {
 }
 function applyCvLayoutLinks() {
   const q = cvLayout() === 'ats' ? '' : '?style=designed';
-  for (const [id, el] of [['cvPdf', document.getElementById('cvPdf')], ['cvPrint', document.getElementById('cvPrint')]]) {
+  for (const id of ['cvPdf', 'cvPdfOnly', 'cvPrint']) {
+    const el = document.getElementById(id);
     if (el) el.href = el.href.split('?')[0] + q;
   }
   const frame = document.querySelector('.cvframe');
@@ -693,7 +694,8 @@ function openCv(docId, cv, meta) {
     <div class="tabs">
       <button data-tab="changes" class="on">What changed (${(cv.changes || []).length})</button>
       <button data-tab="preview">Preview the CV</button>
-      <a href="/cv/${docId}/pdf" download id="cvPdf"><button class="primary">⬇ Download PDF</button></a>
+      <a href="/cv/${docId}/zip" download id="cvPdf"><button class="primary">⬇ Download folder</button></a>
+      <a href="/cv/${docId}/pdf" download id="cvPdfOnly"><button>PDF only</button></a>
       <a href="/cv/${docId}" target="_blank" rel="noopener" id="cvPrint"><button>Open printable ↗</button></a>
       <a href="/cv/${docId}/txt" target="_blank" rel="noopener"><button>Plain text</button></a>
       <label class="atsToggle" title="ATS layout is one column with plain headings, so applicant tracking systems parse it correctly. The designed layout is the two-column version for a human reader.">
