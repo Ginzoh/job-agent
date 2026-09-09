@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { timingSafeEqual, randomBytes } from 'node:crypto';
-import { env } from '../config.js';
-import { listJobs, getJob, setStatus, stats, lastRuns, listDocuments, getDocument, deleteDocument } from '../lib/db.js';
+import { env, profile } from '../config.js';
+import { listJobs, getJob, setStatus, stats, lastRuns, listDocuments, getDocument, deleteDocument, getDb } from '../lib/db.js';
 import { runPipeline } from '../core/pipeline.js';
 import { writeDigest } from '../core/digest.js';
 import { tailor, KINDS } from '../core/tailor.js';
@@ -46,33 +46,75 @@ function applicationFolder(doc) {
   return parts.join('_') || safeName(`Application ${jobId}`);
 }
 
-/**
- * The cover letter that accompanies a CV, rendered as a PDF for the folder.
- *
- * Letters are stored as Markdown against the same job id, so the newest one
- * for this application is the one to include. Returns null when there is no
- * letter, or when no browser is available to render it — an application is
- * perfectly valid without one, and half a download is worse than a plain CV.
- */
-async function coverLetterPdf(cvDoc, person) {
-  const letter = listDocuments(cvDoc.job_id).find((d) => d.kind === 'cover');
-  if (!letter) return null;
-
-  const full = getDocument(letter.id);
-  if (!full?.content?.trim()) return null;
-
-  let language = 'en';
+/** The language a document was written in, per the options stored with it. */
+function docLanguage(doc) {
   try {
-    language = JSON.parse(full.options ?? '{}').language || 'en';
-  } catch { /* options are advisory; the letter still renders in English */ }
+    return JSON.parse(doc?.options ?? '{}').language || 'en';
+  } catch {
+    return 'en'; // options are advisory; the document still renders.
+  }
+}
 
-  const data = await htmlToPdf(renderLetterHtml(full.content, { language }));
+/** A cover letter as a PDF, named in the language it is written in. */
+async function letterPdf(doc, person) {
+  if (!doc?.content?.trim()) return null;
+  const language = docLanguage(doc);
+  const data = await htmlToPdf(renderLetterHtml(doc.content, { language }));
   if (!data) return null;
 
-  // Named in the language it is written in, since that is how it will be
-  // filed and how the recipient will see it.
   const stem = language === 'fr' ? 'Lettre_de_motivation' : 'Cover_letter';
   return { name: `${stem}_${person}.pdf`, data };
+}
+
+/**
+ * The name to put on a generated file.
+ *
+ * The full name lives in a CV's structured data — the letter's Markdown does
+ * not carry it separately, and `profile.name` is often just a first name, which
+ * would produce "Cover_letter_Mickael.pdf" next to "CV_Mickael_KRAUTH.pdf".
+ * Prefers this application's own CV, then any other CV, then the profile.
+ */
+function candidateName(cvRef) {
+  const refs = [cvRef, latestCvRef()].filter(Boolean);
+  for (const ref of refs) {
+    try {
+      const name = JSON.parse(getDocument(ref.id).content)?.name;
+      if (name) return name;
+    } catch { /* not structured, or unreadable — try the next */ }
+  }
+  return profile.name || 'Application';
+}
+
+function latestCvRef() {
+  try {
+    return getDb().prepare("SELECT id FROM documents WHERE kind='cv' ORDER BY id DESC LIMIT 1").get() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Everything written for one application, as files for its folder.
+ *
+ * Built from the job rather than from whichever document was clicked, so the
+ * folder is the same set of files whether it is downloaded from the CV or from
+ * the cover letter. A missing piece is simply absent — an application is
+ * perfectly valid as a CV alone, or as a letter alone.
+ *
+ * `cvPdf` is passed in because the CV route has already rendered it, at the
+ * scale and trim level stored on that document; re-rendering here would risk
+ * producing a different file from the one just previewed.
+ */
+async function applicationFiles(jobId, { cvPdf = null, person = 'CV' } = {}) {
+  const entries = [];
+  if (cvPdf) entries.push({ name: `CV_${person}.pdf`, data: cvPdf });
+
+  const ref = listDocuments(jobId).find((d) => d.kind === 'cover');
+  if (ref) {
+    const letter = await letterPdf(getDocument(ref.id), person);
+    if (letter) entries.push(letter);
+  }
+  return entries;
 }
 
 /**
@@ -254,21 +296,13 @@ async function handle(req, res) {
       }
 
       if (format === 'zip') {
-        // Inside the folder the CV is named after the candidate, not the role:
-        // the folder already says which application it is, and a recruiter
-        // opening the file wants to see whose CV they have.
+        // Inside the folder the files are named after the candidate, not the
+        // role: the folder already says which application it is, and a
+        // recruiter opening a file wants to see whose it is.
         const folder = applicationFolder(doc);
         const person = safeName(cv.name || 'CV').replace(/ /g, '_');
-        const entries = [{ name: `${folder}/CV_${person}.pdf`, data: bytes }];
-
-        // A letter written for the same application belongs in the same folder.
-        // Its absence is not an error — plenty of applications are a CV and a
-        // form — so a missing or unrenderable letter is skipped quietly rather
-        // than failing the download.
-        const letter = await coverLetterPdf(doc, person);
-        if (letter) entries.push({ name: `${folder}/${letter.name}`, data: letter.data });
-
-        const archive = zipSync(entries, { at: new Date(doc.at) });
+        const files = await applicationFiles(doc.job_id, { cvPdf: bytes, person });
+        const archive = zipSync(files.map((f) => ({ ...f, name: `${folder}/${f.name}` })), { at: new Date(doc.at) });
 
         res.writeHead(200, {
           'content-type': 'application/zip',
@@ -294,6 +328,67 @@ async function handle(req, res) {
     }
 
     return sendHtml(res, 200, html);
+  }
+
+  // The letter gets the same three ways out as the CV. Without them the only
+  // route to a PDF or to the application folder was through the CV panel, which
+  // is the wrong place to look for a cover letter.
+  if (path.startsWith('/letter/')) {
+    const [, , rawId, format] = path.split('/');
+    const doc = getDocument(Number(rawId));
+    if (!doc || doc.kind !== 'cover') return send(res, 404, { error: 'no cover letter with that id' });
+
+    const language = docLanguage(doc);
+    const folder = applicationFolder(doc);
+
+    if (format === 'pdf' || format === 'zip') {
+      const cvRef = listDocuments(doc.job_id).find((d) => d.kind === 'cv');
+      const person = safeName(candidateName(cvRef)).replace(/ /g, '_');
+
+      if (format === 'pdf') {
+        const file = await letterPdf(doc, person);
+        if (!file) {
+          return send(res, 503, { error: 'no Chrome or Edge available to render a PDF. Open the printable page and use Ctrl+P → Save as PDF instead.' });
+        }
+        res.writeHead(200, {
+          'content-type': 'application/pdf',
+          'content-disposition': attachment(file.name),
+          'content-length': file.data.length,
+          'cache-control': 'no-store',
+        });
+        return res.end(file.data);
+      }
+
+      // The whole application, identical to what the CV panel hands back — the
+      // CV included, re-fitted here because this route never rendered one.
+      let cvPdf = null;
+      if (cvRef) {
+        try {
+          const cv = JSON.parse(getDocument(cvRef.id).content);
+          const render = (c, o = {}) => renderCvHtml(c, { ...o, ats: true });
+          const base = cv.atsTrim ? trimCv(cv, cv.atsTrim) : cv;
+          cvPdf = cv.atsTrim === undefined
+            ? (await renderCvPdfFitted(cv, render)).bytes
+            : await htmlToPdf(render(base, { scale: cv.atsScale }));
+        } catch { /* a broken CV should not cost the letter its folder */ }
+      }
+
+      const files = await applicationFiles(doc.job_id, { cvPdf, person });
+      if (!files.length) {
+        return send(res, 503, { error: 'nothing could be rendered — no Chrome or Edge available for PDFs.' });
+      }
+
+      const archive = zipSync(files.map((f) => ({ ...f, name: `${folder}/${f.name}` })), { at: new Date(doc.at) });
+      res.writeHead(200, {
+        'content-type': 'application/zip',
+        'content-disposition': attachment(`${folder}.zip`),
+        'content-length': archive.length,
+        'cache-control': 'no-store',
+      });
+      return res.end(archive);
+    }
+
+    return sendHtml(res, 200, renderLetterHtml(doc.content, { language }));
   }
 
   if (path === '/api/pdf-support') {

@@ -350,7 +350,7 @@ async function generate(card, id, kind, extras = {}) {
     ].filter(Boolean).join(' · ');
     const meta = [shortModel(data.model) + ' · $' + (data.cost||0).toFixed(3), src].filter(Boolean).join(' · ');
     if (kind === 'cv' && data.structured) openCv(data.id, data.structured, meta);
-    else openModal(heading, data.content, meta);
+    else openModal(heading, data.content, meta, { kind: kind, id: data.id });
     showDocs(id);
   } catch (err) { openModal(KIND_LABEL[kind] + ' — failed', String(err)); }
 }
@@ -389,7 +389,7 @@ document.addEventListener('click', async (e) => {
     const d = await (await fetch('/api/documents/' + docId)).json();
     const meta = shortModel(d.model) + ' · ' + new Date(d.at).toLocaleString();
     if (d.kind === 'cv') { try { return openCv(d.id, JSON.parse(d.content), meta); } catch {} }
-    openModal(KIND_LABEL[d.kind] || d.kind, d.content, meta);
+    openModal(KIND_LABEL[d.kind] || d.kind, d.content, meta, d);
     openDocId = Number(docId);
     return;
   }
@@ -414,16 +414,31 @@ document.addEventListener('click', async (e) => {
   if (card) showDocs(card.dataset.id);
 });
 
-function openModal(title, content, meta) {
+// The download row a saved cover letter gets, matching the CV's. Without it
+// the only way to a letter PDF or to the application folder was through the CV
+// panel, which is not where anyone looks for a cover letter.
+function letterActionsHtml(docId) {
+  return '<div class="tabs">' +
+    '<a href="/letter/' + docId + '/zip" download><button class="primary">⬇ Download folder</button></a>' +
+    '<a href="/letter/' + docId + '/pdf" download><button>PDF only</button></a>' +
+    '<a href="/letter/' + docId + '" target="_blank" rel="noopener"><button>Open printable ↗</button></a>' +
+    '</div>';
+}
+
+function openModal(title, content, meta, doc) {
   openDocId = null;
   $('#modalTitle').textContent = title;
   const count = content ? content.length.toLocaleString() + ' chars' : '';
   $('#modalMeta').textContent = [meta, count].filter(Boolean).join(' · ');
   modalText = content || '';
   $('#modalBody').scrollTop = 0;
+
+  // Only once saved: the buttons address the letter by document id.
+  const actions = doc && doc.kind === 'cover' && doc.id ? letterActionsHtml(doc.id) : '';
+
   $('#modalBody').innerHTML = content === null
     ? '<div class="working"><span class="spin"></span>Writing… this takes 30-90 seconds.</div>'
-    : '<div class="doc">' + esc(content) + '</div>';
+    : actions + '<div class="doc">' + esc(content) + '</div>';
   $('#modal').classList.add('show');
 }
 

@@ -158,6 +158,8 @@ The panel opens on **What changed**: a table of section / before → after / why
 | **Open printable ↗** | The A4 page in a tab — `Ctrl+P` if you want the browser's own PDF settings |
 | **Plain text** | For pasting into an application form |
 
+The cover letter panel carries the same **Download folder**, **PDF only** and **Open printable** buttons. Either document builds the identical folder, so you never have to open the CV just to download the pair.
+
 PDF rendering uses the Chrome or Edge already on your machine via `--print-to-pdf`, so there's still nothing to install (Edge ships with Windows). If no browser is found, the printable page still works and the download button explains why. Section labels follow the CV's language — a French posting produces *Expérience*, *Compétences techniques*, *Contexte*, not English headings on French text.
 
 **It always fits on one page.** Three mechanisms, in order:

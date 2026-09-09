@@ -562,7 +562,7 @@ async function generate(card, id, kind, extras = {}) {
     ].filter(Boolean).join(' · ');
     const meta = [`${shortModel(data.model)} · $${(data.cost || 0).toFixed(3)}`, src].filter(Boolean).join(' · ');
     if (kind === 'cv' && data.structured) openCv(data.id, data.structured, meta);
-    else openModal(`${KIND_LABEL[kind]} — ${job ? job.title : ''}`, data.content, meta);
+    else openModal(`${KIND_LABEL[kind]} — ${job ? job.title : ''}`, data.content, meta, { kind, id: data.id });
     showExistingDocs(id);
   } catch (err) {
     openModal(`${KIND_LABEL[kind]} — failed`, String(err));
@@ -655,7 +655,7 @@ document.addEventListener('click', async (e) => {
   if (d.kind === 'cv') {
     try { return openCv(d.id, JSON.parse(d.content), meta); } catch { /* fall through to raw */ }
   }
-  openModal(KIND_LABEL[d.kind] || d.kind, d.content, meta);
+  openModal(KIND_LABEL[d.kind] || d.kind, d.content, meta, d);
   openDocId = Number(docId);
 });
 
@@ -727,7 +727,21 @@ $('#modalBody').addEventListener('click', (e) => {
 let modalText = '';
 let openDocId = null; // which saved document the modal is showing, if any
 
-function openModal(title, content, meta) {
+/**
+ * The download row a saved cover letter gets, matching the CV's.
+ *
+ * Without it the only way to a letter PDF or to the application folder was
+ * through the CV panel, which is not where anyone looks for a cover letter.
+ */
+function letterActionsHtml(docId) {
+  return `<div class="tabs">
+      <a href="/letter/${docId}/zip" download><button class="primary">⬇ Download folder</button></a>
+      <a href="/letter/${docId}/pdf" download><button>PDF only</button></a>
+      <a href="/letter/${docId}" target="_blank" rel="noopener"><button>Open printable ↗</button></a>
+    </div>`;
+}
+
+function openModal(title, content, meta, doc) {
   openDocId = null;
   $('#modalTitle').textContent = title;
   // Show the real character count — the model is told to cap the letter *body*,
@@ -736,9 +750,13 @@ function openModal(title, content, meta) {
   $('#modalMeta').textContent = [meta, count].filter(Boolean).join(' · ');
   modalText = content || '';
   $('#modalBody').scrollTop = 0;
+  // A letter only gets the download row once it has been saved — the buttons
+  // address it by document id, which does not exist until then.
+  const actions = doc?.kind === 'cover' && doc.id ? letterActionsHtml(doc.id) : '';
+
   $('#modalBody').innerHTML = content === null
     ? `<div class="working"><span class="spin"></span>Writing with ${window.__writeModel || 'Claude'}… this takes 30-90 seconds.</div>`
-    : `<div class="doc">${esc(content)}</div>`;
+    : `${actions}<div class="doc">${esc(content)}</div>`;
   $('#modal').classList.add('show');
 }
 
