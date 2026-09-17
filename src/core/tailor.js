@@ -1,4 +1,4 @@
-import { env } from '../config.js';
+import { env, profile } from '../config.js';
 import { getBackend, parseJson } from '../llm/index.js';
 import { loadReferenceDocs } from '../lib/docs.js';
 import { recordSpend, totalSpend, saveDocument } from '../lib/db.js';
@@ -20,9 +20,9 @@ import { letterBody } from './letter.js';
 
 const NEVER_INVENT = `ABSOLUTE RULE — do not invent anything.
 
-The reference documents are the only source of truth about this candidate. You may reorder, reword, re-emphasise, expand on and select from what they contain. You may NOT add:
+The reference documents — the CV and the candidate's verified skill inventory — are the only sources of truth about this candidate. You may reorder, reword, re-emphasise, expand on and select from what they contain. You may NOT add:
 - employers, job titles, dates or durations that do not appear in them
-- technologies, tools or frameworks the candidate has not actually used
+- technologies, tools or frameworks that appear in neither the CV nor the skill inventory
 - metrics, percentages, team sizes, user counts or revenue figures that are not already stated
 - certifications, degrees, languages or clearances not listed
 - claims of seniority beyond what the documents support
@@ -206,13 +206,46 @@ function jobBlock(job) {
   ].filter((l) => l !== null).join('\n');
 }
 
+/**
+ * The candidate's skill tiers from the profile, as a second reference source.
+ *
+ * The CV file and the profile drift apart: a skill gets added to the profile
+ * and the CV text is not updated, and because the writer was only ever shown
+ * the CV it would then list that skill as a gap — "no PostgreSQL experience"
+ * for someone whose profile has PostgreSQL in the strong tier. Handing the
+ * writer the inventory too keeps the two in step without loosening the rule
+ * against invention: every entry is curated by the candidate, and the tier
+ * caps how strongly it may be claimed.
+ */
+function skillInventoryBlock() {
+  const tiers = profile.skills ?? {};
+  const list = (k) => (Array.isArray(tiers[k]) && tiers[k].length ? tiers[k].join(', ') : null);
+  const rows = [
+    ['Expert', list('expert')],
+    ['Strong — used in real work', list('strong')],
+    ['Familiar — used, but not deeply or not recently', list('familiar')],
+  ].filter(([, v]) => v);
+  const learning = list('learning');
+
+  if (!rows.length && !learning) return '';
+
+  return [
+    '## Verified skill inventory (maintained by the candidate; admissible alongside the CV)',
+    'Every entry here reflects real use, so a technology on this list may appear in the CV\'s skills section even where the CV text above omits it — but only at the level stated, and never with invented context: no employer, project, duration or metric that the documents do not give. If the posting asks for something on this list, it is NOT a gap.',
+    ...rows.map(([label, v]) => `- ${label}: ${v}`),
+    learning ? `- Currently learning (do NOT present as a skill; at most, note a willingness to learn if the posting values that): ${learning}` : null,
+  ].filter(Boolean).join('\n');
+}
+
 function buildUserPrompt(kind, job, docs, options) {
   const parts = [];
 
-  parts.push('# REFERENCE DOCUMENTS (the only source of truth about this candidate)');
+  parts.push('# REFERENCE DOCUMENTS (the only sources of truth about this candidate)');
   parts.push('');
   parts.push('## Current CV');
   parts.push(docs.cv.text || '(none provided)');
+  parts.push('');
+  parts.push(skillInventoryBlock());
 
   if (kind === 'cover') {
     parts.push('');
